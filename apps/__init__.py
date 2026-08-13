@@ -6,11 +6,17 @@ from apps.extensions import csrf, db, login_manager, migrate
 
 
 def create_app(config_object="config.Config"):
-    app = Flask(
-        __name__,
-        template_folder=str(Path(__file__).resolve().parent.parent / "templates"),
-        static_folder=str(Path(__file__).resolve().parent.parent / "static"),
-    )
+    import os
+
+    root = Path(__file__).resolve().parent.parent
+    flask_kwargs = {
+        "template_folder": str(root / "templates"),
+        "static_folder": str(root / "static"),
+    }
+    if os.environ.get("VERCEL"):
+        flask_kwargs["instance_path"] = "/tmp/flask_instance"
+
+    app = Flask(__name__, **flask_kwargs)
     app.config.from_object(config_object)
 
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
@@ -35,7 +41,7 @@ def create_app(config_object="config.Config"):
     csrf.exempt(api_bp)
     _register_cli(app)
 
-    if __import__("os").environ.get("VERCEL"):
+    if os.environ.get("VERCEL"):
         with app.app_context():
             db.create_all()
             from apps.cli import seed_admin_user
