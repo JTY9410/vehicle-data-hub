@@ -1,0 +1,104 @@
+<!--
+  [UI Flow]
+  1. Auth required
+  2. Data: static API spec
+  3. States: view | print
+  4. Actions → print / back to api-keys
+-->
+{% extends "base.html" %}
+{% block title %}API 명세서 · Vehicle Hub{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3 no-print">
+  <div>
+    <p class="section-kicker mb-1">SPEC</p>
+    <h1 class="page-title">API 명세서</h1>
+    <p class="page-subtitle mb-0">타 프로그램 연동용 조회 API 문서입니다.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <button type="button" class="btn btn-primary" onclick="window.print()">명세서 출력</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('admin.api_keys') }}">API 키로</a>
+  </div>
+</div>
+
+<article class="glass-card p-4 api-spec" id="api-spec">
+  <h2 class="h4">1. 인증</h2>
+  <p>모든 <code>/api/v1/*</code> 요청에 헤더를 포함합니다.</p>
+  <pre class="bg-light p-3 rounded"><code>X-API-Key: &lt;발급받은_API_키&gt;</code></pre>
+  <p>키가 없거나 비활성이면 <code>401</code>을 반환합니다.</p>
+
+  <h2 class="h4 mt-4">2. Base URL</h2>
+  <pre class="bg-light p-3 rounded"><code>{{ request.host_url.rstrip('/') }}/api/v1</code></pre>
+
+  <h2 class="h4 mt-4">3. 공통 응답 필드 (차량)</h2>
+  <p>가격 단위는 <strong>만원</strong>입니다. CSV 업로드 스키마와 동일합니다.</p>
+  <div class="wc-table-wrap">
+    <table class="wc-table">
+      <thead><tr><th>필드</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>원본 CSV id (없으면 DB id 문자열)</td></tr>
+        <tr><td><code>db_id</code></td><td>DB 내부 PK (상세 조회 경로용)</td></tr>
+        <tr><td><code>car_import_yn</code></td><td>수입차 여부</td></tr>
+        <tr><td><code>site_type</code></td><td>사이트 구분</td></tr>
+        <tr><td><code>site_id</code></td><td>사이트 매물 ID</td></tr>
+        <tr><td><code>car_no</code></td><td>차량번호</td></tr>
+        <tr><td><code>car_year</code></td><td>연식</td></tr>
+        <tr><td><code>car_km</code></td><td>주행거리(정수)</td></tr>
+        <tr><td><code>car_price</code></td><td>가격(만원)</td></tr>
+        <tr><td><code>car_maker</code></td><td>제조사</td></tr>
+        <tr><td><code>car_model</code></td><td>모델</td></tr>
+        <tr><td><code>car_submodel</code></td><td>세부모델</td></tr>
+        <tr><td><code>car_grade</code></td><td>등급</td></tr>
+        <tr><td><code>car_subgrade</code></td><td>세부등급</td></tr>
+        <tr><td><code>car_fuel</code></td><td>연료</td></tr>
+        <tr><td><code>car_mission</code></td><td>변속기</td></tr>
+        <tr><td><code>car_color</code></td><td>색상</td></tr>
+        <tr><td><code>car_location</code></td><td>지역</td></tr>
+        <tr><td><code>detail_info</code></td><td>상세정보</td></tr>
+        <tr><td><code>option_info</code></td><td>옵션정보</td></tr>
+        <tr><td><code>diag_info</code></td><td>진단정보</td></tr>
+        <tr><td><code>url_link</code></td><td>원문 링크</td></tr>
+        <tr><td><code>created_at</code></td><td>스크래핑/등록 시각(CSV created_at)</td></tr>
+        <tr><td><code>car_cc</code></td><td>배기량</td></tr>
+        <tr><td><code>car_type</code></td><td>차종</td></tr>
+        <tr><td><code>car_seat</code></td><td>승차인원</td></tr>
+        <tr><td><code>price_unit</code></td><td>항상 <code>만원</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h4 mt-4">4. 엔드포인트</h2>
+
+  <h3 class="h5">4.1 목록</h3>
+  <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles
+Query: page, per_page(max {{ config.API_PER_PAGE_MAX }}), maker, model, site_type, year, price_min, price_max</code></pre>
+  <pre class="bg-light p-3 rounded"><code>curl -H "X-API-Key: YOUR_KEY" \
+  "{{ request.host_url.rstrip('/') }}/api/v1/vehicles?page=1&amp;per_page=20&amp;maker=현대"</code></pre>
+
+  <h3 class="h5 mt-3">4.2 검색</h3>
+  <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles/search?q=아반떼</code></pre>
+
+  <h3 class="h5 mt-3">4.3 상세</h3>
+  <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles/{db_id}</code></pre>
+  <p class="small text-muted">경로의 <code>db_id</code>는 응답의 <code>db_id</code> 값입니다.</p>
+
+  <h2 class="h4 mt-4">5. 업로드 CSV 필수 컬럼</h2>
+  <p class="small mb-2">아래 컬럼이 반영됩니다. <code>site_type</code>+<code>site_id</code> 기준 upsert, 렌트카(하/허/호)·가격 ≤0 또는 ≥9999는 제외.</p>
+  <pre class="bg-light p-3 rounded"><code>id, car_import_yn, site_type, site_id, car_no, car_year, car_km, car_price,
+car_maker, car_model, car_submodel, car_grade, car_subgrade, car_fuel,
+car_mission, car_color, car_location, detail_info, option_info, diag_info,
+url_link, created_at, car_cc, car_type, car_seat</code></pre>
+</article>
+
+<style>
+@media print {
+  .side-rail, .top-bar, .no-print, #inapp-escape { display: none !important; }
+  .app-body { display: block !important; }
+  .app-content { padding: 0 !important; }
+  .glass-card {
+    box-shadow: none !important;
+    border: none !important;
+    backdrop-filter: none !important;
+  }
+}
+</style>
+{% endblock %}

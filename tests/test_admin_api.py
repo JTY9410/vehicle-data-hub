@@ -68,6 +68,17 @@ def test_vehicles_search_by_maker_model_subgrade(client, app):
     assert "전체 저장".encode() in r.data
 
 
+def test_api_docs_page(client, app):
+    with app.app_context():
+        seed_admin_user()
+    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    r = client.get("/api-keys/docs")
+    assert r.status_code == 200
+    assert "API 명세서".encode() in r.data
+    assert b"X-API-Key" in r.data
+    assert b"car_seat" in r.data
+
+
 def test_api_unauthorized(client):
     assert client.get("/api/v1/vehicles").status_code == 401
 
@@ -94,4 +105,8 @@ def test_api_list_and_detail(client, app):
     assert "items" in body
     r = client.get(f"/api/v1/vehicles/{vid}", headers={"X-API-Key": raw})
     assert r.status_code == 200
-    assert r.get_json()["car_price"] == 2000
+    body = r.get_json()
+    assert body["car_price"] == 2000
+    assert "detail_info" in body
+    assert "created_at" in body
+    assert "car_seat" in body

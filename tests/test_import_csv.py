@@ -21,3 +21,7 @@ def test_import_filters_and_upsert(app):
         ).scalar_one()
         assert upserted.car_price == 2200
         assert upserted.car_color == "검정"
+        kept = db.session.execute(
+            db.select(Vehicle).filter_by(site_type="encar", site_id="site-keep")
+        ).scalar_one()
+        assert kept.source_id == "1"

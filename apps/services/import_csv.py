@@ -38,6 +38,7 @@ def _clean(value: str | None) -> str | None:
 
 
 def _apply_row(vehicle: Vehicle, row: dict, scraped_at: datetime | None, price: int) -> None:
+    vehicle.source_id = _clean(row.get("id"))
     vehicle.car_no = _clean(row.get("car_no"))
     vehicle.car_year = _clean(row.get("car_year"))
     vehicle.car_km = parse_km(row.get("car_km"))

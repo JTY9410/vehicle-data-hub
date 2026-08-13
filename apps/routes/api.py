@@ -8,6 +8,35 @@ from apps.services.api_keys import verify_api_key
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
 
+# CSV / API 필드 SSOT (업로드·응답 공통)
+VEHICLE_FIELDS = (
+    "id",
+    "car_import_yn",
+    "site_type",
+    "site_id",
+    "car_no",
+    "car_year",
+    "car_km",
+    "car_price",
+    "car_maker",
+    "car_model",
+    "car_submodel",
+    "car_grade",
+    "car_subgrade",
+    "car_fuel",
+    "car_mission",
+    "car_color",
+    "car_location",
+    "detail_info",
+    "option_info",
+    "diag_info",
+    "url_link",
+    "created_at",
+    "car_cc",
+    "car_type",
+    "car_seat",
+)
+
 
 def require_api_key(view):
     @wraps(view)
@@ -21,16 +50,18 @@ def require_api_key(view):
     return wrapped
 
 
-def _vehicle_public(v: Vehicle, include_detail: bool = False) -> dict:
-    data = {
-        "id": v.id,
+def _vehicle_public(v: Vehicle) -> dict:
+    """CSV 스키마와 동일한 키로 응답. id=원본 CSV id, created_at=스크래핑 시각."""
+    return {
+        "id": v.source_id if v.source_id is not None else str(v.id),
+        "db_id": v.id,
+        "car_import_yn": v.car_import_yn,
         "site_type": v.site_type,
         "site_id": v.site_id,
         "car_no": v.car_no,
         "car_year": v.car_year,
         "car_km": v.car_km,
         "car_price": v.car_price,
-        "price_unit": "만원",
         "car_maker": v.car_maker,
         "car_model": v.car_model,
         "car_submodel": v.car_submodel,
@@ -40,19 +71,16 @@ def _vehicle_public(v: Vehicle, include_detail: bool = False) -> dict:
         "car_mission": v.car_mission,
         "car_color": v.car_color,
         "car_location": v.car_location,
-        "car_import_yn": v.car_import_yn,
+        "detail_info": v.detail_info,
+        "option_info": v.option_info,
+        "diag_info": v.diag_info,
+        "url_link": v.url_link,
+        "created_at": v.scraped_at.isoformat() if v.scraped_at else None,
         "car_cc": v.car_cc,
         "car_type": v.car_type,
         "car_seat": v.car_seat,
-        "url_link": v.url_link,
-        "scraped_at": v.scraped_at.isoformat() if v.scraped_at else None,
-        "updated_at": v.updated_at.isoformat() if v.updated_at else None,
+        "price_unit": "만원",
     }
-    if include_detail:
-        data["detail_info"] = v.detail_info
-        data["option_info"] = v.option_info
-        data["diag_info"] = v.diag_info
-    return data
 
 
 @bp.get("/vehicles")
@@ -94,6 +122,7 @@ def list_vehicles():
         page=page,
         per_page=per_page,
         total=total,
+        fields=list(VEHICLE_FIELDS),
         items=[_vehicle_public(v) for v in rows],
     )
 
@@ -103,7 +132,7 @@ def list_vehicles():
 def search_vehicles():
     q = (request.args.get("q") or "").strip()
     if not q:
-        return jsonify(price_unit="만원", items=[])
+        return jsonify(price_unit="만원", fields=list(VEHICLE_FIELDS), items=[])
     stmt = (
         db.select(Vehicle)
         .filter(
@@ -117,7 +146,11 @@ def search_vehicles():
         .limit(50)
     )
     rows = db.session.execute(stmt).scalars().all()
-    return jsonify(price_unit="만원", items=[_vehicle_public(v) for v in rows])
+    return jsonify(
+        price_unit="만원",
+        fields=list(VEHICLE_FIELDS),
+        items=[_vehicle_public(v) for v in rows],
+    )
 
 
 @bp.get("/vehicles/<int:vehicle_id>")
@@ -126,4 +159,4 @@ def vehicle_detail(vehicle_id: int):
     v = db.session.get(Vehicle, vehicle_id)
     if v is None:
         return jsonify(error="not_found"), 404
-    return jsonify(_vehicle_public(v, include_detail=True))
+    return jsonify(_vehicle_public(v))

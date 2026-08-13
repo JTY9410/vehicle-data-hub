@@ -221,6 +221,12 @@ def api_keys():
     return render_template("api_keys.html", keys=keys, plaintext=plaintext)
 
 
+@bp.get("/api-keys/docs")
+@login_required
+def api_docs():
+    return render_template("api_docs.html")
+
+
 @bp.post("/api-keys/<int:key_id>/revoke")
 @login_required
 def api_keys_revoke(key_id: int):

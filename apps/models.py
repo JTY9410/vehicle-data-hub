@@ -31,6 +31,7 @@ class Vehicle(db.Model):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[str | None] = mapped_column(String(64), index=True)
     site_type: Mapped[str] = mapped_column(String(32), nullable=False)
     site_id: Mapped[str] = mapped_column(String(128), nullable=False)
     car_no: Mapped[str | None] = mapped_column(String(32))
