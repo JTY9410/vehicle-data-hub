@@ -2,7 +2,7 @@ from pathlib import Path
 
 from apps.cli import seed_admin_user
 from apps.extensions import db
-from apps.models import Vehicle
+from apps.models import Vehicle, VehicleMaker, VehicleModel
 from apps.services.api_keys import create_api_key
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample.csv"
@@ -35,6 +35,10 @@ def test_login_and_upload(client, app):
 def test_vehicles_search_by_maker_model_subgrade(client, app):
     with app.app_context():
         seed_admin_user()
+        db.session.add(VehicleMaker(maker_no="10055", maker_name="현대"))
+        db.session.add(
+            VehicleModel(model_no="2001", maker_no="10055", model_name="쏘나타")
+        )
         db.session.add(
             Vehicle(
                 site_type="encar",
@@ -45,6 +49,8 @@ def test_vehicles_search_by_maker_model_subgrade(client, app):
                 car_model="쏘나타",
                 car_grade="가솔린 2.0",
                 car_subgrade="인스퍼레이션",
+                maker_no="10055",
+                model_no="2001",
             )
         )
         db.session.add(
@@ -57,15 +63,16 @@ def test_vehicles_search_by_maker_model_subgrade(client, app):
                 car_model="K5",
                 car_grade="가솔린 1.6",
                 car_subgrade="시그니처",
+                maker_no="10001",
+                model_no="2002",
             )
         )
         db.session.commit()
     client.post("/login", data={"username": "wecar", "password": "1004wecar"})
-    r = client.get("/vehicles?maker=현대&model=쏘나타&subgrade=인스퍼레이션")
+    r = client.get("/vehicles?maker_no=10055&model_no=2001")
     assert r.status_code == 200
     assert "인스퍼레이션".encode() in r.data
     assert "시그니처".encode() not in r.data
-    assert "전체 저장".encode() in r.data
 
 
 def test_api_docs_page(client, app):

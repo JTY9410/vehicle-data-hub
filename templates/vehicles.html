@@ -1,9 +1,9 @@
 <!--
   [UI Flow]
   1. Auth required
-  2. Data: GET /vehicles?maker&model&subgrade&page&per_page
-  3. States: empty | table | pagination over full inventory
-  4. Actions → filter submit / clear / page / per_page change
+  2. Data: GET /vehicles?maker_no&model_no&grade_no&gdetail_no&saved_from&saved_to&page
+  3. States: empty | table | pagination (Encar code cascade)
+  4. Actions → filter submit / clear / page change
 -->
 {% extends "base.html" %}
 {% block title %}데이터 · Vehicle Hub{% endblock %}
@@ -11,36 +11,46 @@
 <p class="section-kicker mb-1">VEHICLES</p>
 <h1 class="page-title">저장된 데이터</h1>
 <p class="page-subtitle">
-  DB 전체 <strong>{{ "{:,}".format(total_all) }}</strong>건을 조회합니다.
-  제조사 · 차량 · 세부등급으로 필터할 수 있습니다. 가격 단위: 만원.
+  엔카 차량코드 체계(제조사 → 차량 → 등급 → 세부등급)로 검색합니다.
+  CSV <code>created_at</code> 저장일자도 함께 조회됩니다.
+  DB 전체 <strong>{{ "{:,}".format(total_all) }}</strong>건 · 가격 단위: 만원.
 </p>
 
 <div class="glass-card p-4 filter-card mb-4">
   <form method="get" action="{{ url_for('admin.vehicles') }}" id="vehicle-filter-form" class="row g-3 align-items-end">
     <div class="col-md-3">
-      <label class="form-label" for="maker">제조사</label>
-      <select class="form-select" id="maker" name="maker">
+      <label class="form-label" for="maker_no">제조사</label>
+      <select class="form-select" id="maker_no" name="maker_no">
         <option value="">전체</option>
-        {% for m in makers %}
-        <option value="{{ m }}" {% if maker == m %}selected{% endif %}>{{ m }}</option>
+        {% for m in code_makers %}
+        <option value="{{ m.maker_no }}" {% if maker_no == m.maker_no %}selected{% endif %}>{{ m.maker_name }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="col-md-3">
-      <label class="form-label" for="model">차량</label>
-      <select class="form-select" id="model" name="model">
+      <label class="form-label" for="model_no">차량</label>
+      <select class="form-select" id="model_no" name="model_no">
         <option value="">전체</option>
-        {% for m in models %}
-        <option value="{{ m }}" {% if model == m %}selected{% endif %}>{{ m }}</option>
+        {% for m in code_models %}
+        <option value="{{ m.model_no }}" {% if model_no == m.model_no %}selected{% endif %}>{{ m.model_name }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="col-md-2">
-      <label class="form-label" for="subgrade">세부등급</label>
-      <select class="form-select" id="subgrade" name="subgrade">
+      <label class="form-label" for="grade_no">등급</label>
+      <select class="form-select" id="grade_no" name="grade_no">
         <option value="">전체</option>
-        {% for s in subgrades %}
-        <option value="{{ s }}" {% if subgrade == s %}selected{% endif %}>{{ s }}</option>
+        {% for g in code_grades %}
+        <option value="{{ g.grade_no }}" {% if grade_no == g.grade_no %}selected{% endif %}>{{ g.grade_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label" for="gdetail_no">세부등급</label>
+      <select class="form-select" id="gdetail_no" name="gdetail_no">
+        <option value="">전체</option>
+        {% for g in code_gdetails %}
+        <option value="{{ g.gdetail_no }}" {% if gdetail_no == g.gdetail_no %}selected{% endif %}>{{ g.gdetail_name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -52,8 +62,16 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-2 d-flex gap-2">
-      <button class="btn btn-primary flex-grow-1" type="submit">검색</button>
+    <div class="col-md-3">
+      <label class="form-label" for="saved_from">저장일 시작</label>
+      <input class="form-control" type="date" id="saved_from" name="saved_from" value="{{ saved_from or '' }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="saved_to">저장일 종료</label>
+      <input class="form-control" type="date" id="saved_to" name="saved_to" value="{{ saved_to or '' }}">
+    </div>
+    <div class="col-12 d-flex gap-2">
+      <button class="btn btn-primary" type="submit">검색</button>
       <a class="btn btn-outline-secondary" href="{{ url_for('admin.vehicles') }}">전체</a>
     </div>
   </form>
@@ -61,9 +79,9 @@
 
 <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
   <span class="small">
-    표시 중 <strong>{{ "{:,}".format(vehicles|length) }}</strong>건 /
-    필터 결과 <strong>{{ "{:,}".format(total) }}</strong>건 /
-    전체 저장 <strong>{{ "{:,}".format(total_all) }}</strong>건
+    표시 <strong>{{ "{:,}".format(vehicles|length) }}</strong> /
+    결과 <strong>{{ "{:,}".format(total) }}</strong> /
+    전체 <strong>{{ "{:,}".format(total_all) }}</strong>
   </span>
   <span class="text-muted small">페이지 {{ page }} / {{ pages or 1 }}</span>
 </div>
@@ -76,33 +94,31 @@
     <table class="wc-table">
       <thead>
         <tr>
-          <th>#</th>
+          <th>코드</th>
           <th>제조사</th>
           <th>차량</th>
+          <th>세부모델</th>
           <th>등급</th>
           <th>세부등급</th>
           <th>연식</th>
-          <th>주행</th>
           <th>가격(만원)</th>
           <th>번호</th>
-          <th>지역</th>
-          <th>사이트</th>
+          <th>저장일자</th>
         </tr>
       </thead>
       <tbody>
       {% for v in vehicles %}
         <tr>
-          <td>{{ v.id }}</td>
+          <td class="small text-muted">{{ v.maker_no or '-' }}/{{ v.model_no or '-' }}</td>
           <td>{{ v.car_maker or "-" }}</td>
           <td>{{ v.car_model or "-" }}</td>
+          <td>{{ v.car_submodel or "-" }}</td>
           <td>{{ v.car_grade or "-" }}</td>
           <td>{% if v.car_subgrade and v.car_subgrade != 'NULL' %}{{ v.car_subgrade }}{% else %}-{% endif %}</td>
           <td>{{ v.car_year or "-" }}</td>
-          <td>{% if v.car_km is not none %}{{ "{:,}".format(v.car_km) }}{% else %}-{% endif %}</td>
           <td class="price-cell">{% if v.car_price is not none %}{{ "{:,}".format(v.car_price) }}{% else %}-{% endif %}</td>
           <td>{{ v.car_no or "-" }}</td>
-          <td>{{ v.car_location or "-" }}</td>
-          <td>{{ v.site_type }}</td>
+          <td class="small">{% if v.scraped_at %}{{ v.scraped_at.strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -114,7 +130,7 @@
 {% if pages > 1 %}
 <nav class="mt-4" aria-label="페이지">
   <ul class="pagination justify-content-center flex-wrap">
-    {% set q = 'maker=' ~ (maker or '') ~ '&model=' ~ (model or '') ~ '&subgrade=' ~ (subgrade or '') ~ '&per_page=' ~ per_page %}
+    {% set q = 'maker_no=' ~ (maker_no or '') ~ '&model_no=' ~ (model_no or '') ~ '&grade_no=' ~ (grade_no or '') ~ '&gdetail_no=' ~ (gdetail_no or '') ~ '&saved_from=' ~ (saved_from or '') ~ '&saved_to=' ~ (saved_to or '') ~ '&per_page=' ~ per_page %}
     <li class="page-item {% if page <= 1 %}disabled{% endif %}">
       <a class="page-link" href="?{{ q }}&page={{ page - 1 }}">이전</a>
     </li>
@@ -138,18 +154,67 @@
 (() => {
   const form = document.getElementById("vehicle-filter-form");
   if (!form) return;
-  ["maker", "model", "per_page"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener("change", () => {
-      if (id === "maker") {
-        form.model.value = "";
-        form.subgrade.value = "";
-      } else if (id === "model") {
-        form.subgrade.value = "";
-      }
-      form.submit();
+  const maker = form.maker_no;
+  const model = form.model_no;
+  const grade = form.grade_no;
+  const gdetail = form.gdetail_no;
+
+  const fillSelect = (el, items, valueKey, labelKey, selected) => {
+    const keep = el.querySelector("option[value='']");
+    el.innerHTML = "";
+    if (keep) el.appendChild(keep);
+    else {
+      const o = document.createElement("option");
+      o.value = "";
+      o.textContent = "전체";
+      el.appendChild(o);
+    }
+    items.forEach((it) => {
+      const o = document.createElement("option");
+      o.value = it[valueKey];
+      o.textContent = it[labelKey];
+      if (selected && selected === it[valueKey]) o.selected = true;
+      el.appendChild(o);
     });
+  };
+
+  maker?.addEventListener("change", async () => {
+    model.value = "";
+    grade.value = "";
+    gdetail.value = "";
+    if (!maker.value) {
+      fillSelect(model, [], "model_no", "model_name");
+      fillSelect(grade, [], "grade_no", "grade_name");
+      fillSelect(gdetail, [], "gdetail_no", "gdetail_name");
+      return;
+    }
+    const res = await fetch(`/api/codes/models?maker_no=${encodeURIComponent(maker.value)}`);
+    fillSelect(model, await res.json(), "model_no", "model_name");
+    fillSelect(grade, [], "grade_no", "grade_name");
+    fillSelect(gdetail, [], "gdetail_no", "gdetail_name");
+  });
+
+  model?.addEventListener("change", async () => {
+    grade.value = "";
+    gdetail.value = "";
+    if (!model.value) {
+      fillSelect(grade, [], "grade_no", "grade_name");
+      fillSelect(gdetail, [], "gdetail_no", "gdetail_name");
+      return;
+    }
+    const res = await fetch(`/api/codes/grades?model_no=${encodeURIComponent(model.value)}`);
+    fillSelect(grade, await res.json(), "grade_no", "grade_name");
+    fillSelect(gdetail, [], "gdetail_no", "gdetail_name");
+  });
+
+  grade?.addEventListener("change", async () => {
+    gdetail.value = "";
+    if (!grade.value) {
+      fillSelect(gdetail, [], "gdetail_no", "gdetail_name");
+      return;
+    }
+    const res = await fetch(`/api/codes/gdetails?grade_no=${encodeURIComponent(grade.value)}`);
+    fillSelect(gdetail, await res.json(), "gdetail_no", "gdetail_name");
   });
 })();
 </script>

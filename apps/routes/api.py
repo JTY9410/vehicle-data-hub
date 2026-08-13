@@ -5,6 +5,7 @@ from flask import Blueprint, current_app, jsonify, request
 from apps.extensions import db
 from apps.models import Vehicle
 from apps.services.api_keys import verify_api_key
+from apps.services.import_csv import parse_date_bound
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
 
@@ -18,11 +19,16 @@ VEHICLE_FIELDS = (
     "car_year",
     "car_km",
     "car_price",
-    "car_maker",
+        "car_maker",
     "car_model",
     "car_submodel",
     "car_grade",
     "car_subgrade",
+    "maker_no",
+    "model_no",
+    "mdetail_no",
+    "grade_no",
+    "gdetail_no",
     "car_fuel",
     "car_mission",
     "car_color",
@@ -51,7 +57,7 @@ def require_api_key(view):
 
 
 def _vehicle_public(v: Vehicle) -> dict:
-    """CSV 스키마와 동일한 키로 응답. id=원본 CSV id, created_at=스크래핑 시각."""
+    """CSV 스키마와 동일한 키로 응답. id=원본 CSV id, created_at=CSV 저장일자(scraped_at)."""
     return {
         "id": v.source_id if v.source_id is not None else str(v.id),
         "db_id": v.id,
@@ -67,6 +73,11 @@ def _vehicle_public(v: Vehicle) -> dict:
         "car_submodel": v.car_submodel,
         "car_grade": v.car_grade,
         "car_subgrade": v.car_subgrade,
+        "maker_no": v.maker_no,
+        "model_no": v.model_no,
+        "mdetail_no": v.mdetail_no,
+        "grade_no": v.grade_no,
+        "gdetail_no": v.gdetail_no,
         "car_fuel": v.car_fuel,
         "car_mission": v.car_mission,
         "car_color": v.car_color,
@@ -94,10 +105,28 @@ def list_vehicles():
     stmt = db.select(Vehicle)
     maker = request.args.get("maker")
     model = request.args.get("model")
+    maker_no = (request.args.get("maker_no") or "").strip()
+    model_no = (request.args.get("model_no") or "").strip()
+    mdetail_no = (request.args.get("mdetail_no") or "").strip()
+    grade_no = (request.args.get("grade_no") or "").strip()
+    gdetail_no = (request.args.get("gdetail_no") or "").strip()
     site_type = request.args.get("site_type")
     year = request.args.get("year")
     price_min = request.args.get("price_min", type=int)
     price_max = request.args.get("price_max", type=int)
+    created_at_from = (request.args.get("created_at_from") or "").strip()
+    created_at_to = (request.args.get("created_at_to") or "").strip()
+
+    if maker_no:
+        stmt = stmt.filter(Vehicle.maker_no == maker_no)
+    if model_no:
+        stmt = stmt.filter(Vehicle.model_no == model_no)
+    if mdetail_no:
+        stmt = stmt.filter(Vehicle.mdetail_no == mdetail_no)
+    if grade_no:
+        stmt = stmt.filter(Vehicle.grade_no == grade_no)
+    if gdetail_no:
+        stmt = stmt.filter(Vehicle.gdetail_no == gdetail_no)
     if maker:
         stmt = stmt.filter(Vehicle.car_maker == maker)
     if model:
@@ -110,6 +139,12 @@ def list_vehicles():
         stmt = stmt.filter(Vehicle.car_price >= price_min)
     if price_max is not None:
         stmt = stmt.filter(Vehicle.car_price <= price_max)
+    from_dt = parse_date_bound(created_at_from, end_of_day=False)
+    to_dt = parse_date_bound(created_at_to, end_of_day=True)
+    if from_dt is not None:
+        stmt = stmt.filter(Vehicle.scraped_at >= from_dt)
+    if to_dt is not None:
+        stmt = stmt.filter(Vehicle.scraped_at <= to_dt)
 
     total = db.session.execute(
         db.select(db.func.count()).select_from(stmt.subquery())

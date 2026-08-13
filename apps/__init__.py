@@ -68,12 +68,24 @@ def _register_cli(app):
     import click
 
     from apps.cli import seed_admin_user
+    from apps.services.encar_codes import remap_all_vehicles
+    from apps.services.encar_seed import seed_encar_codes
     from apps.services.import_csv import import_csv_file
 
     @app.cli.command("seed-admin")
     def seed_admin():
         seed_admin_user()
         click.echo("admin seeded")
+
+    @app.cli.command("seed-encar-codes")
+    def seed_encar_codes_cmd():
+        counts = seed_encar_codes()
+        click.echo(f"encar codes seeded: {counts}")
+
+    @app.cli.command("remap-vehicle-codes")
+    def remap_vehicle_codes_cmd():
+        result = remap_all_vehicles()
+        click.echo(f"remap done: {result}")
 
     @app.cli.command("import-csv")
     @click.argument("path")

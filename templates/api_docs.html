@@ -49,6 +49,11 @@
         <tr><td><code>car_submodel</code></td><td>세부모델</td></tr>
         <tr><td><code>car_grade</code></td><td>등급</td></tr>
         <tr><td><code>car_subgrade</code></td><td>세부등급</td></tr>
+        <tr><td><code>maker_no</code></td><td>엔카 제조사 코드</td></tr>
+        <tr><td><code>model_no</code></td><td>엔카 차량(모델) 코드</td></tr>
+        <tr><td><code>mdetail_no</code></td><td>엔카 세부모델 코드</td></tr>
+        <tr><td><code>grade_no</code></td><td>엔카 등급 코드</td></tr>
+        <tr><td><code>gdetail_no</code></td><td>엔카 세부등급 코드</td></tr>
         <tr><td><code>car_fuel</code></td><td>연료</td></tr>
         <tr><td><code>car_mission</code></td><td>변속기</td></tr>
         <tr><td><code>car_color</code></td><td>색상</td></tr>
@@ -57,7 +62,7 @@
         <tr><td><code>option_info</code></td><td>옵션정보</td></tr>
         <tr><td><code>diag_info</code></td><td>진단정보</td></tr>
         <tr><td><code>url_link</code></td><td>원문 링크</td></tr>
-        <tr><td><code>created_at</code></td><td>스크래핑/등록 시각(CSV created_at)</td></tr>
+        <tr><td><code>created_at</code></td><td>CSV 저장일자(<code>created_at</code> → DB <code>scraped_at</code>)</td></tr>
         <tr><td><code>car_cc</code></td><td>배기량</td></tr>
         <tr><td><code>car_type</code></td><td>차종</td></tr>
         <tr><td><code>car_seat</code></td><td>승차인원</td></tr>
@@ -70,9 +75,9 @@
 
   <h3 class="h5">4.1 목록</h3>
   <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles
-Query: page, per_page(max {{ config.API_PER_PAGE_MAX }}), maker, model, site_type, year, price_min, price_max</code></pre>
+Query: page, per_page(max {{ config.API_PER_PAGE_MAX }}), maker_no, model_no, mdetail_no, grade_no, gdetail_no, maker, model, site_type, year, price_min, price_max, created_at_from, created_at_to</code></pre>
   <pre class="bg-light p-3 rounded"><code>curl -H "X-API-Key: YOUR_KEY" \
-  "{{ request.host_url.rstrip('/') }}/api/v1/vehicles?page=1&amp;per_page=20&amp;maker=현대"</code></pre>
+  "{{ request.host_url.rstrip('/') }}/api/v1/vehicles?page=1&amp;per_page=20&amp;created_at_from=2026-08-01&amp;created_at_to=2026-08-13"</code></pre>
 
   <h3 class="h5 mt-3">4.2 검색</h3>
   <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles/search?q=아반떼</code></pre>

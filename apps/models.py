@@ -56,10 +56,57 @@ class Vehicle(db.Model):
     diag_info: Mapped[str | None] = mapped_column(Text)
     url_link: Mapped[str | None] = mapped_column(Text)
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Encar vehicle code hierarchy (maker → model → mdetail → grade → gdetail)
+    maker_no: Mapped[str | None] = mapped_column(String(32), index=True)
+    model_no: Mapped[str | None] = mapped_column(String(32), index=True)
+    mdetail_no: Mapped[str | None] = mapped_column(String(32), index=True)
+    grade_no: Mapped[str | None] = mapped_column(String(32), index=True)
+    gdetail_no: Mapped[str | None] = mapped_column(String(32), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
+
+
+class VehicleMaker(db.Model):
+    __tablename__ = "vehicle_maker"
+    maker_no: Mapped[str] = mapped_column(String(32), primary_key=True)
+    maker_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    sort_no: Mapped[int | None] = mapped_column(Integer)
+
+
+class VehicleModel(db.Model):
+    __tablename__ = "vehicle_model"
+    model_no: Mapped[str] = mapped_column(String(32), primary_key=True)
+    maker_no: Mapped[str | None] = mapped_column(String(32), index=True)
+    model_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    sort_no: Mapped[int | None] = mapped_column(Integer)
+
+
+class VehicleModelDetail(db.Model):
+    __tablename__ = "vehicle_model_detail"
+    mdetail_no: Mapped[str] = mapped_column(String(32), primary_key=True)
+    model_no: Mapped[str | None] = mapped_column(String(32), index=True)
+    mdetail_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    sort_no: Mapped[int | None] = mapped_column(Integer)
+    st_year: Mapped[int | None] = mapped_column(Integer)
+    ed_year: Mapped[int | None] = mapped_column(Integer)
+
+
+class VehicleGrade(db.Model):
+    __tablename__ = "vehicle_grade"
+    grade_no: Mapped[str] = mapped_column(String(32), primary_key=True)
+    mdetail_no: Mapped[str | None] = mapped_column(String(32), index=True)
+    grade_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    sort_no: Mapped[int | None] = mapped_column(Integer)
+
+
+class VehicleGradeDetail(db.Model):
+    __tablename__ = "vehicle_grade_detail"
+    gdetail_no: Mapped[str] = mapped_column(String(32), primary_key=True)
+    grade_no: Mapped[str | None] = mapped_column(String(32), index=True)
+    gdetail_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    sort_no: Mapped[int | None] = mapped_column(Integer)
 
 
 class ApiKey(db.Model):

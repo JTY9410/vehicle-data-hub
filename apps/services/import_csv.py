@@ -1,31 +1,84 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 
 from sqlalchemy import tuple_
 
 from apps.extensions import db
 from apps.models import ImportJob, Vehicle, utcnow
+from apps.services.encar_codes import apply_codes_to_vehicle
 from apps.services.filters import parse_km, parse_price_manwon, should_reject_row
 
 CHUNK_SIZE = 1000
 
+# CSV 저장일자 컬럼 후보 (우선순위)
+_CSV_SAVED_AT_KEYS = ("created_at", "saved_at", "저장일자", "scraped_at")
+
+
+def parse_csv_saved_at(raw: str | None) -> datetime | None:
+    """CSV 저장일자(created_at 등) → timezone-aware UTC datetime."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s or s.upper() == "NULL":
+        return None
+    s = s.replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        dt = None
+        for fmt in (
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%Y/%m/%d %H:%M:%S",
+            "%Y/%m/%d %H:%M",
+            "%Y-%m-%d",
+            "%Y/%m/%d",
+            "%Y.%m.%d %H:%M:%S",
+            "%Y.%m.%d",
+        ):
+            try:
+                dt = datetime.strptime(s, fmt)
+                break
+            except ValueError:
+                continue
+        if dt is None:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
 
 def _parse_scraped_at(raw: str | None) -> datetime | None:
+    return parse_csv_saved_at(raw)
+
+
+def csv_row_saved_at(row: dict) -> datetime | None:
+    for key in _CSV_SAVED_AT_KEYS:
+        if key in row and row.get(key) not in (None, ""):
+            parsed = parse_csv_saved_at(row.get(key))
+            if parsed is not None:
+                return parsed
+    return None
+
+
+def parse_date_bound(raw: str | None, *, end_of_day: bool = False) -> datetime | None:
+    """YYYY-MM-DD 또는 datetime 문자열 → UTC 경계."""
     if not raw:
         return None
     s = str(raw).strip()
     if not s:
         return None
-    try:
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt
+    if len(s) == 10 and s[4] == "-" and s[7] == "-":
+        try:
+            d = date.fromisoformat(s)
+        except ValueError:
+            return None
+        t = time(23, 59, 59) if end_of_day else time(0, 0, 0)
+        return datetime.combine(d, t, tzinfo=timezone.utc)
+    return parse_csv_saved_at(s)
 
 
 def _clean(value: str | None) -> str | None:
@@ -62,6 +115,7 @@ def _apply_row(vehicle: Vehicle, row: dict, scraped_at: datetime | None, price: 
     vehicle.url_link = _clean(row.get("url_link"))
     vehicle.scraped_at = scraped_at
     vehicle.updated_at = utcnow()
+    apply_codes_to_vehicle(vehicle)
 
 
 def _flush_chunk(job: ImportJob, pending: list[dict]) -> None:
@@ -136,7 +190,7 @@ def import_csv_file(path: str | Path, source: str, filename: str | None = None) 
                         "site_type": site_type,
                         "site_id": site_id,
                         "row": row,
-                        "scraped_at": _parse_scraped_at(row.get("created_at")),
+                        "scraped_at": csv_row_saved_at(row),
                         "price": price,
                     }
                 )

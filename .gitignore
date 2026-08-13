@@ -7,10 +7,13 @@ instance/
 *.db
 .DS_Store
 uploads/
-data/
+data/*
+!data/encar_codes/
+!data/encar_codes/**
 .worktrees/
 worktrees/
 *.csv
 !tests/fixtures/*.csv
+!data/encar_codes/*.csv
 .pytest_cache/
 .vercel

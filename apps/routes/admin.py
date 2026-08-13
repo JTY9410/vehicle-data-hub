@@ -15,9 +15,19 @@ from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 
 from apps.extensions import db
-from apps.models import ApiKey, ImportJob, User, Vehicle
+from apps.models import (
+    ApiKey,
+    ImportJob,
+    User,
+    Vehicle,
+    VehicleGrade,
+    VehicleGradeDetail,
+    VehicleMaker,
+    VehicleModel,
+    VehicleModelDetail,
+)
 from apps.services.api_keys import create_api_key, revoke_api_key
-from apps.services.import_csv import import_csv_file
+from apps.services.import_csv import import_csv_file, parse_date_bound
 
 bp = Blueprint("admin", __name__)
 
@@ -89,6 +99,13 @@ def _valid_text(column):
 @bp.get("/vehicles")
 @login_required
 def vehicles():
+    maker_no = (request.args.get("maker_no") or "").strip()
+    model_no = (request.args.get("model_no") or "").strip()
+    grade_no = (request.args.get("grade_no") or "").strip()
+    gdetail_no = (request.args.get("gdetail_no") or "").strip()
+    saved_from = (request.args.get("saved_from") or "").strip()
+    saved_to = (request.args.get("saved_to") or "").strip()
+    # legacy name filters still accepted
     maker = (request.args.get("maker") or "").strip()
     model = (request.args.get("model") or "").strip()
     subgrade = (request.args.get("subgrade") or "").strip()
@@ -97,49 +114,69 @@ def vehicles():
     if per_page not in (50, 100, 200, 500):
         per_page = 100
 
+    saved_from_dt = parse_date_bound(saved_from, end_of_day=False)
+    saved_to_dt = parse_date_bound(saved_to, end_of_day=True)
+
     total_all = db.session.execute(
         db.select(db.func.count()).select_from(Vehicle)
     ).scalar_one()
 
-    makers = [
-        r[0]
-        for r in db.session.execute(
-            db.select(Vehicle.car_maker)
-            .where(_valid_text(Vehicle.car_maker))
-            .distinct()
-            .order_by(Vehicle.car_maker)
-        ).all()
-    ]
+    makers = db.session.execute(
+        db.select(VehicleMaker).order_by(VehicleMaker.maker_name)
+    ).scalars().all()
 
-    model_stmt = (
-        db.select(Vehicle.car_model)
-        .where(_valid_text(Vehicle.car_model))
-        .distinct()
-        .order_by(Vehicle.car_model)
-    )
-    if maker:
-        model_stmt = model_stmt.where(Vehicle.car_maker == maker)
-    models = [r[0] for r in db.session.execute(model_stmt).all()]
+    models = []
+    if maker_no:
+        models = db.session.execute(
+            db.select(VehicleModel)
+            .where(VehicleModel.maker_no == maker_no)
+            .order_by(VehicleModel.model_name)
+        ).scalars().all()
 
-    sub_stmt = (
-        db.select(Vehicle.car_subgrade)
-        .where(_valid_text(Vehicle.car_subgrade))
-        .distinct()
-        .order_by(Vehicle.car_subgrade)
-    )
-    if maker:
-        sub_stmt = sub_stmt.where(Vehicle.car_maker == maker)
-    if model:
-        sub_stmt = sub_stmt.where(Vehicle.car_model == model)
-    subgrades = [r[0] for r in db.session.execute(sub_stmt).all()]
+    grades = []
+    if model_no:
+        mdetail_nos = [
+            r[0]
+            for r in db.session.execute(
+                db.select(VehicleModelDetail.mdetail_no).where(
+                    VehicleModelDetail.model_no == model_no
+                )
+            ).all()
+        ]
+        if mdetail_nos:
+            grades = db.session.execute(
+                db.select(VehicleGrade)
+                .where(VehicleGrade.mdetail_no.in_(mdetail_nos))
+                .order_by(VehicleGrade.grade_name)
+            ).scalars().all()
+
+    gdetails = []
+    if grade_no:
+        gdetails = db.session.execute(
+            db.select(VehicleGradeDetail)
+            .where(VehicleGradeDetail.grade_no == grade_no)
+            .order_by(VehicleGradeDetail.gdetail_name)
+        ).scalars().all()
 
     stmt = db.select(Vehicle)
-    if maker:
+    if maker_no:
+        stmt = stmt.where(Vehicle.maker_no == maker_no)
+    elif maker:
         stmt = stmt.where(Vehicle.car_maker == maker)
-    if model:
+    if model_no:
+        stmt = stmt.where(Vehicle.model_no == model_no)
+    elif model:
         stmt = stmt.where(Vehicle.car_model == model)
-    if subgrade:
+    if grade_no:
+        stmt = stmt.where(Vehicle.grade_no == grade_no)
+    if gdetail_no:
+        stmt = stmt.where(Vehicle.gdetail_no == gdetail_no)
+    elif subgrade:
         stmt = stmt.where(Vehicle.car_subgrade == subgrade)
+    if saved_from_dt is not None:
+        stmt = stmt.where(Vehicle.scraped_at >= saved_from_dt)
+    if saved_to_dt is not None:
+        stmt = stmt.where(Vehicle.scraped_at <= saved_to_dt)
 
     total = db.session.execute(
         db.select(db.func.count()).select_from(stmt.subquery())
@@ -149,7 +186,7 @@ def vehicles():
         page = pages
 
     rows = db.session.execute(
-        stmt.order_by(Vehicle.id.desc())
+        stmt.order_by(Vehicle.scraped_at.desc().nullslast(), Vehicle.id.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
     ).scalars().all()
@@ -157,17 +194,89 @@ def vehicles():
     return render_template(
         "vehicles.html",
         vehicles=rows,
-        makers=makers,
-        models=models,
-        subgrades=subgrades,
-        maker=maker,
-        model=model,
-        subgrade=subgrade,
+        code_makers=makers,
+        code_models=models,
+        code_grades=grades,
+        code_gdetails=gdetails,
+        maker_no=maker_no,
+        model_no=model_no,
+        grade_no=grade_no,
+        gdetail_no=gdetail_no,
+        saved_from=saved_from,
+        saved_to=saved_to,
         page=page,
         pages=pages,
         total=total,
         total_all=total_all,
         per_page=per_page,
+    )
+
+
+@bp.get("/api/codes/makers")
+@login_required
+def code_makers():
+    rows = db.session.execute(
+        db.select(VehicleMaker).order_by(VehicleMaker.maker_name)
+    ).scalars().all()
+    return jsonify([{"maker_no": r.maker_no, "maker_name": r.maker_name} for r in rows])
+
+
+@bp.get("/api/codes/models")
+@login_required
+def code_models():
+    maker_no = (request.args.get("maker_no") or "").strip()
+    stmt = db.select(VehicleModel)
+    if maker_no:
+        stmt = stmt.where(VehicleModel.maker_no == maker_no)
+    rows = db.session.execute(stmt.order_by(VehicleModel.model_name)).scalars().all()
+    return jsonify([{"model_no": r.model_no, "model_name": r.model_name} for r in rows])
+
+
+@bp.get("/api/codes/grades")
+@login_required
+def code_grades():
+    model_no = (request.args.get("model_no") or "").strip()
+    if not model_no:
+        return jsonify([])
+    mdetail_nos = [
+        r[0]
+        for r in db.session.execute(
+            db.select(VehicleModelDetail.mdetail_no).where(
+                VehicleModelDetail.model_no == model_no
+            )
+        ).all()
+    ]
+    if not mdetail_nos:
+        return jsonify([])
+    rows = db.session.execute(
+        db.select(VehicleGrade)
+        .where(VehicleGrade.mdetail_no.in_(mdetail_nos))
+        .order_by(VehicleGrade.grade_name)
+    ).scalars().all()
+    # de-dupe by grade_name keeping first grade_no
+    seen = set()
+    out = []
+    for r in rows:
+        if r.grade_name in seen:
+            continue
+        seen.add(r.grade_name)
+        out.append({"grade_no": r.grade_no, "grade_name": r.grade_name})
+    return jsonify(out)
+
+
+@bp.get("/api/codes/gdetails")
+@login_required
+def code_gdetails():
+    grade_no = (request.args.get("grade_no") or "").strip()
+    if not grade_no:
+        return jsonify([])
+    rows = db.session.execute(
+        db.select(VehicleGradeDetail)
+        .where(VehicleGradeDetail.grade_no == grade_no)
+        .order_by(VehicleGradeDetail.gdetail_name)
+    ).scalars().all()
+    return jsonify(
+        [{"gdetail_no": r.gdetail_no, "gdetail_name": r.gdetail_name} for r in rows]
     )
 
 

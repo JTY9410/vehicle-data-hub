@@ -19,4 +19,5 @@ else:
 PY
 flask db upgrade
 flask seed-admin
+flask seed-encar-codes || true
 exec gunicorn -b 0.0.0.0:8000 -w 2 --timeout 600 "wsgi:app"

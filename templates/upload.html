@@ -10,7 +10,7 @@
 {% block content %}
 <p class="section-kicker mb-1">IMPORT</p>
 <h1 class="page-title">CSV 업로드</h1>
-<p class="page-subtitle">렌트카(하/허/호)·비정상 가격(≤0 또는 ≥9999)은 저장되지 않습니다. 가격 단위: 만원.</p>
+<p class="page-subtitle">렌트카(하/허/호)·비정상 가격(≤0 또는 ≥9999)은 저장되지 않습니다. 가격 단위: 만원. CSV <code>created_at</code>은 저장일자로 DB에 보관됩니다.</p>
 <div class="glass-card p-3 mb-4 small">
   <strong>반영 컬럼:</strong>
   <code>id, car_import_yn, site_type, site_id, car_no, car_year, car_km, car_price, car_maker, car_model, car_submodel, car_grade, car_subgrade, car_fuel, car_mission, car_color, car_location, detail_info, option_info, diag_info, url_link, created_at, car_cc, car_type, car_seat</code>
