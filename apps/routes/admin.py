@@ -60,6 +60,24 @@ def dashboard():
     )
 
 
+@bp.post("/reset-data")
+@login_required
+def reset_data():
+    confirm = (request.form.get("confirm") or "").strip()
+    if confirm != "DELETE":
+        flash('초기화하려면 확인란에 DELETE 를 입력하세요.', "warning")
+        return redirect(url_for("admin.dashboard"))
+    deleted_vehicles = db.session.execute(db.delete(Vehicle)).rowcount or 0
+    deleted_jobs = db.session.execute(db.delete(ImportJob)).rowcount or 0
+    db.session.commit()
+    flash(
+        f"데이터 초기화 완료: 차량 {deleted_vehicles:,}건, 적재이력 {deleted_jobs:,}건 삭제 "
+        "(API 키·관리자 계정은 유지)",
+        "success",
+    )
+    return redirect(url_for("admin.dashboard"))
+
+
 def _valid_text(column):
     return db.and_(
         column.is_not(None),

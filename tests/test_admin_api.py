@@ -79,6 +79,32 @@ def test_api_docs_page(client, app):
     assert b"car_seat" in r.data
 
 
+def test_reset_data_requires_confirm(client, app):
+    with app.app_context():
+        seed_admin_user()
+        db.session.add(
+            Vehicle(
+                site_type="encar",
+                site_id="r-1",
+                car_no="12가3000",
+                car_price=1500,
+                car_maker="현대",
+                car_model="아반떼",
+            )
+        )
+        db.session.commit()
+    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    r = client.post("/reset-data", data={"confirm": "NO"}, follow_redirects=True)
+    assert r.status_code == 200
+    with app.app_context():
+        assert db.session.execute(db.select(db.func.count()).select_from(Vehicle)).scalar_one() == 1
+    r = client.post("/reset-data", data={"confirm": "DELETE"}, follow_redirects=True)
+    assert r.status_code == 200
+    assert "초기화".encode() in r.data
+    with app.app_context():
+        assert db.session.execute(db.select(db.func.count()).select_from(Vehicle)).scalar_one() == 0
+
+
 def test_api_unauthorized(client):
     assert client.get("/api/v1/vehicles").status_code == 401
 

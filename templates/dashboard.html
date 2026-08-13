@@ -3,7 +3,7 @@
   1. Auth required
   2. Data: GET / → vehicle_count, jobs
   3. States: empty jobs | list
-  4. Actions → vehicles / upload / api-keys
+  4. Actions → vehicles / upload / api-keys / reset-data
 -->
 {% extends "base.html" %}
 {% block title %}대시보드 · Vehicle Hub{% endblock %}
@@ -17,8 +17,11 @@
     <div class="stat-label">차량 데이터</div>
     <div class="stat-value">{{ "{:,}".format(vehicle_count) }}</div>
   </div>
-  <div class="glass-card p-4 d-flex flex-column justify-content-center">
+  <div class="glass-card p-4 d-flex flex-column justify-content-center gap-2">
     <a class="btn btn-primary" href="{{ url_for('admin.vehicles') }}">데이터 보기</a>
+    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#resetDataModal">
+      데이터 초기화
+    </button>
   </div>
 </div>
 
@@ -45,5 +48,29 @@
     </table>
   </div>
   {% endif %}
+</div>
+
+<div class="modal fade" id="resetDataModal" tabindex="-1" aria-labelledby="resetDataModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('admin.reset_data') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h2 class="modal-title fs-5" id="resetDataModalLabel">저장된 데이터 초기화</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">차량 데이터와 적재 이력을 <strong>모두 삭제</strong>합니다. API 키·관리자 계정은 유지됩니다.</p>
+          <p class="text-danger small">이 작업은 되돌릴 수 없습니다.</p>
+          <label class="form-label" for="confirm">확인을 위해 <code>DELETE</code> 입력</label>
+          <input class="form-control" id="confirm" name="confirm" required autocomplete="off" placeholder="DELETE">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="submit" class="btn btn-primary">초기화 실행</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 {% endblock %}
