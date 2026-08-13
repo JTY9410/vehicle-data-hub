@@ -34,6 +34,14 @@ def create_app(config_object="config.Config"):
     app.register_blueprint(api_bp)
     csrf.exempt(api_bp)
     _register_cli(app)
+
+    if __import__("os").environ.get("VERCEL"):
+        with app.app_context():
+            db.create_all()
+            from apps.cli import seed_admin_user
+
+            seed_admin_user()
+
     return app
 
 

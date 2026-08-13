@@ -13,3 +13,4 @@ worktrees/
 *.csv
 !tests/fixtures/*.csv
 .pytest_cache/
+.vercel
