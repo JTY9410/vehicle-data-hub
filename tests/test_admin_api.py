@@ -79,7 +79,17 @@ def test_api_docs_page(client, app):
     assert b"car_seat" in r.data
 
 
-def test_reset_data_requires_confirm(client, app):
+def test_reset_dialog_markup(client, app):
+    with app.app_context():
+        from apps.cli import seed_admin_user
+
+        seed_admin_user()
+    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    r = client.get("/")
+    assert r.status_code == 200
+    assert b'id="resetDataDialog"' in r.data
+    assert b"showModal" in r.data
+    assert b"openResetDialog" in r.data
     with app.app_context():
         seed_admin_user()
         db.session.add(

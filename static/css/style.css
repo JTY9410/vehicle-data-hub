@@ -208,8 +208,39 @@ body {
 }
 
 @keyframes shell-fade-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.reset-dialog {
+  border: 1px solid var(--wc-border);
+  border-radius: var(--wc-radius-lg);
+  padding: 0;
+  width: min(480px, calc(100vw - 2rem));
+  box-shadow: var(--wc-shadow-lg);
+  background: var(--wc-bg);
+  color: var(--wc-text-primary);
+}
+
+.reset-dialog::backdrop {
+  background: rgba(26, 31, 46, .45);
+  backdrop-filter: blur(2px);
+}
+
+.reset-dialog-form { display: flex; flex-direction: column; }
+.reset-dialog-header,
+.reset-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: 1rem 1.25rem;
+}
+.reset-dialog-header { border-bottom: 1px solid var(--wc-border); }
+.reset-dialog-body { padding: 1.25rem; }
+.reset-dialog-footer {
+  border-top: 1px solid var(--wc-border);
+  justify-content: flex-end;
 }
 
 .brand-mark {
