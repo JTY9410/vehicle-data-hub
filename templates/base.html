@@ -2,51 +2,99 @@
   [UI Flow]
   1. Auth: session cookie / login
   2. Data: GET current page
-  3. States: loading | empty | error | success via flash
-  4. Actions → side nav destinations
+  3. States: flash success|error|warning
+  4. Actions → side-rail destinations (car1 Quicken rail)
 -->
 <!doctype html>
-<html lang="ko" data-bs-theme="light">
+<html lang="ko" data-theme="light" data-bs-theme="light">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#1f6f5b">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#C0392B">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
   <title>{% block title %}Vehicle Data Hub{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/style.css') }}?v=2" rel="stylesheet">
 </head>
-<body>
+<body class="app-body {% if current_user.is_authenticated %}has-side-rail{% endif %} {% block body_class %}{% endblock %}">
+  {% set ep = request.endpoint or '' %}
   <div id="inapp-escape" class="d-none"></div>
-  <div class="app-shell">
-    {% if current_user.is_authenticated %}
-    <aside class="side-nav glass">
-      <div class="brand">Vehicle Hub</div>
-      <nav>
-        <a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">대시보드</a>
-        <a href="{{ url_for('admin.upload') }}" class="{% if request.endpoint and 'upload' in request.endpoint %}active{% endif %}">CSV 업로드</a>
-        <a href="{{ url_for('admin.api_keys') }}" class="{% if request.endpoint and 'api_keys' in request.endpoint %}active{% endif %}">API 키</a>
-      </nav>
-      <form method="post" action="{{ url_for('admin.logout') }}" class="mt-auto">
+
+  {% if current_user.is_authenticated %}
+  <aside class="side-rail d-none d-lg-flex" aria-label="주 메뉴">
+    <a href="{{ url_for('admin.dashboard') }}" class="side-rail-brand" title="Vehicle Hub">
+      <span class="brand-mark">VDH</span>
+    </a>
+    <nav class="side-rail-nav">
+      <a href="{{ url_for('admin.dashboard') }}" class="side-rail-item {% if ep == 'admin.dashboard' %}active{% endif %}" title="대시보드">
+        <span class="side-rail-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        </span>
+        <span class="side-rail-label">대시보드</span>
+      </a>
+      <a href="{{ url_for('admin.vehicles') }}" class="side-rail-item {% if ep == 'admin.vehicles' %}active{% endif %}" title="데이터">
+        <span class="side-rail-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15V9"/><path d="M13 15V7"/><path d="M18 15v-3"/></svg>
+        </span>
+        <span class="side-rail-label">데이터</span>
+      </a>
+      <a href="{{ url_for('admin.upload') }}" class="side-rail-item {% if ep and 'upload' in ep %}active{% endif %}" title="업로드">
+        <span class="side-rail-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>
+        </span>
+        <span class="side-rail-label">업로드</span>
+      </a>
+      <a href="{{ url_for('admin.api_keys') }}" class="side-rail-item {% if ep and 'api_keys' in ep %}active{% endif %}" title="API 키">
+        <span class="side-rail-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="12" r="3"/><path d="M11 12h9"/><path d="M17 12v2"/><path d="M20 12v3"/></svg>
+        </span>
+        <span class="side-rail-label">API</span>
+      </a>
+    </nav>
+    <div class="side-rail-footer">
+      <form method="post" action="{{ url_for('admin.logout') }}" class="w-100">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-sm btn-outline-secondary w-100">로그아웃</button>
+        <button type="submit" class="side-rail-item w-100" title="로그아웃">
+          <span class="side-rail-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 7V5a2 2 0 012-2h7v18h-7a2 2 0 01-2-2v-2"/><path d="M15 12H4m0 0l3-3m-3 3l3 3"/></svg>
+          </span>
+          <span class="side-rail-label">로그아웃</span>
+        </button>
       </form>
-    </aside>
+    </div>
+  </aside>
+  {% endif %}
+
+  <div class="app-stage">
+    {% if current_user.is_authenticated %}
+    <header class="top-bar">
+      <div class="top-bar-inner w-100">
+        <a class="top-bar-brand" href="{{ url_for('admin.dashboard') }}">
+          <span class="brand-mark">VDH</span>
+          <span class="top-bar-title">Vehicle Data Hub</span>
+        </a>
+        <div class="d-flex gap-2 d-lg-none">
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.vehicles') }}">데이터</a>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.upload') }}">업로드</a>
+        </div>
+      </div>
+    </header>
     {% endif %}
-    <main class="main-panel">
+
+    <main class="app-content">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           {% for category, message in messages %}
-            <div class="alert alert-{{ category }} glass" role="alert">{{ message }}</div>
+            <div class="alert alert-{{ category }} glass-card" role="alert">{{ message }}</div>
           {% endfor %}
         {% endif %}
       {% endwith %}
       {% block content %}{% endblock %}
     </main>
   </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sw-register.js') }}"></script>

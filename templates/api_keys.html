@@ -8,29 +8,33 @@
 {% extends "base.html" %}
 {% block title %}API 키 · Vehicle Hub{% endblock %}
 {% block content %}
+<p class="section-kicker mb-1">ACCESS</p>
 <h1 class="page-title">API 키</h1>
-<p class="text-muted">타 프로그램은 헤더 <code>X-API-Key</code>로 조회 API를 호출합니다.</p>
+<p class="page-subtitle">타 프로그램은 헤더 <code>X-API-Key</code>로 조회 API를 호출합니다.</p>
+
 {% if plaintext %}
-<div class="alert alert-warning glass">
+<div class="alert alert-warning glass-card">
   <strong>지금만 보이는 키:</strong>
   <code class="user-select-all">{{ plaintext }}</code>
 </div>
 {% endif %}
-<div class="glass card-panel">
+
+<div class="glass-card p-4">
   <form method="post" class="row g-2 align-items-end">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="col-md-8">
-      <label class="form-label" for="name">키 이름</label>
+      <label class="form-label small fw-semibold" for="name">키 이름</label>
       <input class="form-control" id="name" name="name" required placeholder="예: partner-app">
     </div>
     <div class="col-md-4">
-      <button class="btn btn-accent w-100" type="submit">발급</button>
+      <button class="btn btn-primary w-100" type="submit">발급</button>
     </div>
   </form>
 </div>
-<div class="glass card-panel mt-4">
-  <div class="table-responsive">
-    <table class="table align-middle mb-0">
+
+<div class="glass-card p-4 mt-4">
+  <div class="wc-table-wrap">
+    <table class="wc-table">
       <thead><tr><th>이름</th><th>접두사</th><th>상태</th><th>마지막 사용</th><th></th></tr></thead>
       <tbody>
       {% for k in keys %}
@@ -43,7 +47,7 @@
             {% if k.is_active %}
             <form method="post" action="{{ url_for('admin.api_keys_revoke', key_id=k.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="btn btn-sm btn-outline-danger" type="submit">폐기</button>
+              <button class="btn btn-sm btn-outline-primary" type="submit">폐기</button>
             </form>
             {% endif %}
           </td>

@@ -7,22 +7,27 @@
 -->
 {% extends "base.html" %}
 {% block title %}로그인 · Vehicle Hub{% endblock %}
+{% block body_class %}auth-shell{% endblock %}
 {% block content %}
-<section class="login-wrap">
-  <div class="glass login-card">
-    <h1 class="brand-hero">Vehicle Hub</h1>
-    <p class="text-muted">크롤링 매물 DB · API 허브</p>
+<section class="login-page">
+  <div class="login-card glass-card">
+    <div class="text-center mb-4">
+      <span class="brand-mark brand-mark-lg">VDH</span>
+      <p class="section-kicker mt-3 mb-1">DATA HUB</p>
+      <h1 class="page-title">로그인</h1>
+      <p class="page-subtitle mb-0">크롤링 매물 DB · API 허브</p>
+    </div>
     <form method="post" action="{{ url_for('admin.login') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="mb-3">
-        <label class="form-label" for="username">아이디</label>
-        <input class="form-control" id="username" name="username" required autocomplete="username">
+        <label class="form-label small fw-semibold" for="username">아이디</label>
+        <input class="form-control" id="username" name="username" required autocomplete="username" autofocus>
       </div>
-      <div class="mb-3">
-        <label class="form-label" for="password">비밀번호</label>
+      <div class="mb-4">
+        <label class="form-label small fw-semibold" for="password">비밀번호</label>
         <input class="form-control" id="password" name="password" type="password" required autocomplete="current-password">
       </div>
-      <button class="btn btn-accent w-100" type="submit">로그인</button>
+      <button class="btn btn-primary w-100 btn-lg" type="submit">로그인</button>
     </form>
   </div>
 </section>

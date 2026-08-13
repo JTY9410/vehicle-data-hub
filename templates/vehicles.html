@@ -1,0 +1,138 @@
+<!--
+  [UI Flow]
+  1. Auth required
+  2. Data: GET /vehicles?maker&model&subgrade&page
+  3. States: empty | table | pagination
+  4. Actions → filter submit / clear / page change
+-->
+{% extends "base.html" %}
+{% block title %}데이터 · Vehicle Hub{% endblock %}
+{% block content %}
+<p class="section-kicker mb-1">VEHICLES</p>
+<h1 class="page-title">저장된 데이터</h1>
+<p class="page-subtitle">제조사 · 차량 · 세부등급으로 검색합니다. 가격 단위: 만원.</p>
+
+<div class="glass-card p-4 filter-card mb-4">
+  <form method="get" action="{{ url_for('admin.vehicles') }}" class="row g-3 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label" for="maker">제조사</label>
+      <select class="form-select" id="maker" name="maker">
+        <option value="">전체</option>
+        {% for m in makers %}
+        <option value="{{ m }}" {% if maker == m %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="model">차량</label>
+      <select class="form-select" id="model" name="model">
+        <option value="">전체</option>
+        {% for m in models %}
+        <option value="{{ m }}" {% if model == m %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="subgrade">세부등급</label>
+      <select class="form-select" id="subgrade" name="subgrade">
+        <option value="">전체</option>
+        {% for s in subgrades %}
+        <option value="{{ s }}" {% if subgrade == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3 d-flex gap-2">
+      <button class="btn btn-primary flex-grow-1" type="submit">검색</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('admin.vehicles') }}">초기화</a>
+    </div>
+  </form>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <span class="text-muted small">검색 결과 {{ "{:,}".format(total) }}건</span>
+  <span class="text-muted small">페이지 {{ page }} / {{ pages or 1 }}</span>
+</div>
+
+<div class="glass-card p-0 overflow-hidden">
+  {% if not vehicles %}
+  <p class="text-muted p-4 mb-0">조건에 맞는 데이터가 없습니다.</p>
+  {% else %}
+  <div class="wc-table-wrap">
+    <table class="wc-table">
+      <thead>
+        <tr>
+          <th>제조사</th>
+          <th>차량</th>
+          <th>등급</th>
+          <th>세부등급</th>
+          <th>연식</th>
+          <th>주행</th>
+          <th>가격(만원)</th>
+          <th>번호</th>
+          <th>지역</th>
+          <th>사이트</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for v in vehicles %}
+        <tr>
+          <td>{{ v.car_maker or "-" }}</td>
+          <td>{{ v.car_model or "-" }}</td>
+          <td>{{ v.car_grade or "-" }}</td>
+          <td>{{ v.car_subgrade or "-" }}</td>
+          <td>{{ v.car_year or "-" }}</td>
+          <td>{% if v.car_km is not none %}{{ "{:,}".format(v.car_km) }}{% else %}-{% endif %}</td>
+          <td class="price-cell">{% if v.car_price is not none %}{{ "{:,}".format(v.car_price) }}{% else %}-{% endif %}</td>
+          <td>{{ v.car_no or "-" }}</td>
+          <td>{{ v.car_location or "-" }}</td>
+          <td>{{ v.site_type }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+{% if pages > 1 %}
+<nav class="mt-4" aria-label="페이지">
+  <ul class="pagination justify-content-center flex-wrap">
+    {% set q = 'maker=' ~ (maker or '') ~ '&model=' ~ (model or '') ~ '&subgrade=' ~ (subgrade or '') %}
+    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+      <a class="page-link" href="?{{ q }}&page={{ page - 1 }}">이전</a>
+    </li>
+    {% for p in range(1, pages + 1) %}
+      {% if p == 1 or p == pages or (p >= page - 2 and p <= page + 2) %}
+      <li class="page-item {% if p == page %}active{% endif %}">
+        <a class="page-link" href="?{{ q }}&page={{ p }}">{{ p }}</a>
+      </li>
+      {% elif p == page - 3 or p == page + 3 %}
+      <li class="page-item disabled"><span class="page-link">…</span></li>
+      {% endif %}
+    {% endfor %}
+    <li class="page-item {% if page >= pages %}disabled{% endif %}">
+      <a class="page-link" href="?{{ q }}&page={{ page + 1 }}">다음</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
+
+<script>
+(() => {
+  const maker = document.getElementById("maker");
+  const model = document.getElementById("model");
+  if (!maker || !model) return;
+  maker.addEventListener("change", () => {
+    model.value = "";
+    const sub = document.getElementById("subgrade");
+    if (sub) sub.value = "";
+    maker.form.submit();
+  });
+  model.addEventListener("change", () => {
+    const sub = document.getElementById("subgrade");
+    if (sub) sub.value = "";
+    model.form.submit();
+  });
+})();
+</script>
+{% endblock %}

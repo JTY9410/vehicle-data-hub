@@ -6,7 +6,7 @@
   "display": "standalone",
   "display_override": ["standalone", "browser"],
   "background_color": "#f4f7f8",
-  "theme_color": "#1f6f5b",
+  "theme_color": "#C0392B",
   "icons": [
     {
       "src": "/static/icons/icon-192.png",

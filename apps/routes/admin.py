@@ -60,6 +60,83 @@ def dashboard():
     )
 
 
+@bp.get("/vehicles")
+@login_required
+def vehicles():
+    maker = (request.args.get("maker") or "").strip()
+    model = (request.args.get("model") or "").strip()
+    subgrade = (request.args.get("subgrade") or "").strip()
+    page = max(request.args.get("page", 1, type=int) or 1, 1)
+    per_page = 50
+
+    makers = [
+        r[0]
+        for r in db.session.execute(
+            db.select(Vehicle.car_maker)
+            .where(Vehicle.car_maker.is_not(None), Vehicle.car_maker != "")
+            .distinct()
+            .order_by(Vehicle.car_maker)
+        ).all()
+    ]
+
+    model_stmt = (
+        db.select(Vehicle.car_model)
+        .where(Vehicle.car_model.is_not(None), Vehicle.car_model != "")
+        .distinct()
+        .order_by(Vehicle.car_model)
+    )
+    if maker:
+        model_stmt = model_stmt.where(Vehicle.car_maker == maker)
+    models = [r[0] for r in db.session.execute(model_stmt).all()]
+
+    sub_stmt = (
+        db.select(Vehicle.car_subgrade)
+        .where(Vehicle.car_subgrade.is_not(None), Vehicle.car_subgrade != "")
+        .distinct()
+        .order_by(Vehicle.car_subgrade)
+    )
+    if maker:
+        sub_stmt = sub_stmt.where(Vehicle.car_maker == maker)
+    if model:
+        sub_stmt = sub_stmt.where(Vehicle.car_model == model)
+    subgrades = [r[0] for r in db.session.execute(sub_stmt).all()]
+
+    stmt = db.select(Vehicle)
+    if maker:
+        stmt = stmt.where(Vehicle.car_maker == maker)
+    if model:
+        stmt = stmt.where(Vehicle.car_model == model)
+    if subgrade:
+        stmt = stmt.where(Vehicle.car_subgrade == subgrade)
+
+    total = db.session.execute(
+        db.select(db.func.count()).select_from(stmt.subquery())
+    ).scalar_one()
+    pages = max((total + per_page - 1) // per_page, 1) if total else 0
+    if pages and page > pages:
+        page = pages
+
+    rows = db.session.execute(
+        stmt.order_by(Vehicle.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    ).scalars().all()
+
+    return render_template(
+        "vehicles.html",
+        vehicles=rows,
+        makers=makers,
+        models=models,
+        subgrades=subgrades,
+        maker=maker,
+        model=model,
+        subgrade=subgrade,
+        page=page,
+        pages=pages,
+        total=total,
+    )
+
+
 @bp.route("/upload", methods=["GET", "POST"])
 @login_required
 def upload():

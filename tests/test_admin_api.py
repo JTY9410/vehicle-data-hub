@@ -32,6 +32,41 @@ def test_login_and_upload(client, app):
     assert b"saved" in r.data.lower() or "저장".encode() in r.data or b"completed" in r.data or "작업".encode() in r.data
 
 
+def test_vehicles_search_by_maker_model_subgrade(client, app):
+    with app.app_context():
+        seed_admin_user()
+        db.session.add(
+            Vehicle(
+                site_type="encar",
+                site_id="v-1",
+                car_no="12가1000",
+                car_price=2000,
+                car_maker="현대",
+                car_model="쏘나타",
+                car_grade="가솔린 2.0",
+                car_subgrade="인스퍼레이션",
+            )
+        )
+        db.session.add(
+            Vehicle(
+                site_type="encar",
+                site_id="v-2",
+                car_no="12가2000",
+                car_price=3000,
+                car_maker="기아",
+                car_model="K5",
+                car_grade="가솔린 1.6",
+                car_subgrade="시그니처",
+            )
+        )
+        db.session.commit()
+    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    r = client.get("/vehicles?maker=현대&model=쏘나타&subgrade=인스퍼레이션")
+    assert r.status_code == 200
+    assert "인스퍼레이션".encode() in r.data
+    assert "시그니처".encode() not in r.data
+
+
 def test_api_unauthorized(client):
     assert client.get("/api/v1/vehicles").status_code == 401
 
