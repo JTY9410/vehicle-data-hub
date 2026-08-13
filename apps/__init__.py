@@ -23,6 +23,7 @@ def create_app(config_object="config.Config"):
     login_manager.login_view = "admin.login"
     csrf.init_app(app)
 
+    from apps import models  # noqa: F401
     from apps.routes.health import bp as health_bp
 
     app.register_blueprint(health_bp)
