@@ -327,6 +327,7 @@ body.auth-shell .app-stage {
 .wc-table thead th {
   position: sticky;
   top: 0;
+  z-index: 2;
   background: var(--wc-bg-lavender);
   color: var(--wc-text-secondary);
   font-size: .75rem;
@@ -336,6 +337,7 @@ body.auth-shell .app-stage {
   padding: .85rem 1rem;
   border-bottom: 1px solid var(--wc-border);
   white-space: nowrap;
+  box-shadow: 0 1px 0 var(--wc-border);
 }
 
 .wc-table tbody td {
@@ -346,6 +348,43 @@ body.auth-shell .app-stage {
 
 .wc-table tbody tr:hover { background: rgba(192, 57, 43, .04); }
 .wc-table tbody tr:last-child td { border-bottom: none; }
+
+/* 데이터 페이지: 제목행 고정 + 가로/세로 스크롤바 */
+.vehicles-table-card {
+  overflow: hidden;
+}
+
+.vehicles-table-scroll {
+  max-height: min(70vh, calc(100dvh - 22rem));
+  overflow-x: scroll;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  border-radius: 0;
+  border: none;
+}
+
+.vehicles-table-scroll:focus-visible {
+  outline: 2px solid rgba(192, 57, 43, .35);
+  outline-offset: -2px;
+}
+
+.vehicles-data-table {
+  min-width: 1180px;
+  width: max(100%, 1180px);
+}
+
+.vehicles-data-table tbody td {
+  white-space: nowrap;
+}
+
+.vehicles-data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--wc-bg-lavender);
+}
 
 .filter-card .form-label {
   font-size: .8rem;

@@ -86,12 +86,12 @@
   <span class="text-muted small">페이지 {{ page }} / {{ pages or 1 }}</span>
 </div>
 
-<div class="glass-card p-0 overflow-hidden">
+<div class="glass-card p-0 vehicles-table-card">
   {% if not vehicles %}
   <p class="text-muted p-4 mb-0">조건에 맞는 데이터가 없습니다.</p>
   {% else %}
-  <div class="wc-table-wrap">
-    <table class="wc-table">
+  <div class="wc-table-wrap vehicles-table-scroll" tabindex="0" aria-label="차량 데이터 표">
+    <table class="wc-table vehicles-data-table">
       <thead>
         <tr>
           <th>코드</th>
