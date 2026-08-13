@@ -65,6 +65,7 @@ def test_vehicles_search_by_maker_model_subgrade(client, app):
     assert r.status_code == 200
     assert "인스퍼레이션".encode() in r.data
     assert "시그니처".encode() not in r.data
+    assert "전체 저장".encode() in r.data
 
 
 def test_api_unauthorized(client):

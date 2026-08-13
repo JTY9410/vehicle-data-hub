@@ -60,6 +60,14 @@ def dashboard():
     )
 
 
+def _valid_text(column):
+    return db.and_(
+        column.is_not(None),
+        column != "",
+        column != "NULL",
+    )
+
+
 @bp.get("/vehicles")
 @login_required
 def vehicles():
@@ -67,13 +75,19 @@ def vehicles():
     model = (request.args.get("model") or "").strip()
     subgrade = (request.args.get("subgrade") or "").strip()
     page = max(request.args.get("page", 1, type=int) or 1, 1)
-    per_page = 50
+    per_page = request.args.get("per_page", 100, type=int) or 100
+    if per_page not in (50, 100, 200, 500):
+        per_page = 100
+
+    total_all = db.session.execute(
+        db.select(db.func.count()).select_from(Vehicle)
+    ).scalar_one()
 
     makers = [
         r[0]
         for r in db.session.execute(
             db.select(Vehicle.car_maker)
-            .where(Vehicle.car_maker.is_not(None), Vehicle.car_maker != "")
+            .where(_valid_text(Vehicle.car_maker))
             .distinct()
             .order_by(Vehicle.car_maker)
         ).all()
@@ -81,7 +95,7 @@ def vehicles():
 
     model_stmt = (
         db.select(Vehicle.car_model)
-        .where(Vehicle.car_model.is_not(None), Vehicle.car_model != "")
+        .where(_valid_text(Vehicle.car_model))
         .distinct()
         .order_by(Vehicle.car_model)
     )
@@ -91,7 +105,7 @@ def vehicles():
 
     sub_stmt = (
         db.select(Vehicle.car_subgrade)
-        .where(Vehicle.car_subgrade.is_not(None), Vehicle.car_subgrade != "")
+        .where(_valid_text(Vehicle.car_subgrade))
         .distinct()
         .order_by(Vehicle.car_subgrade)
     )
@@ -134,6 +148,8 @@ def vehicles():
         page=page,
         pages=pages,
         total=total,
+        total_all=total_all,
+        per_page=per_page,
     )
 
 

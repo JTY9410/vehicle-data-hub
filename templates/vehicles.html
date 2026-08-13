@@ -1,19 +1,22 @@
 <!--
   [UI Flow]
   1. Auth required
-  2. Data: GET /vehicles?maker&model&subgrade&page
-  3. States: empty | table | pagination
-  4. Actions → filter submit / clear / page change
+  2. Data: GET /vehicles?maker&model&subgrade&page&per_page
+  3. States: empty | table | pagination over full inventory
+  4. Actions → filter submit / clear / page / per_page change
 -->
 {% extends "base.html" %}
 {% block title %}데이터 · Vehicle Hub{% endblock %}
 {% block content %}
 <p class="section-kicker mb-1">VEHICLES</p>
 <h1 class="page-title">저장된 데이터</h1>
-<p class="page-subtitle">제조사 · 차량 · 세부등급으로 검색합니다. 가격 단위: 만원.</p>
+<p class="page-subtitle">
+  DB 전체 <strong>{{ "{:,}".format(total_all) }}</strong>건을 조회합니다.
+  제조사 · 차량 · 세부등급으로 필터할 수 있습니다. 가격 단위: 만원.
+</p>
 
 <div class="glass-card p-4 filter-card mb-4">
-  <form method="get" action="{{ url_for('admin.vehicles') }}" class="row g-3 align-items-end">
+  <form method="get" action="{{ url_for('admin.vehicles') }}" id="vehicle-filter-form" class="row g-3 align-items-end">
     <div class="col-md-3">
       <label class="form-label" for="maker">제조사</label>
       <select class="form-select" id="maker" name="maker">
@@ -32,7 +35,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label class="form-label" for="subgrade">세부등급</label>
       <select class="form-select" id="subgrade" name="subgrade">
         <option value="">전체</option>
@@ -41,15 +44,27 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-3 d-flex gap-2">
+    <div class="col-md-2">
+      <label class="form-label" for="per_page">페이지당</label>
+      <select class="form-select" id="per_page" name="per_page">
+        {% for n in [50, 100, 200, 500] %}
+        <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}건</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 d-flex gap-2">
       <button class="btn btn-primary flex-grow-1" type="submit">검색</button>
-      <a class="btn btn-outline-secondary" href="{{ url_for('admin.vehicles') }}">초기화</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('admin.vehicles') }}">전체</a>
     </div>
   </form>
 </div>
 
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <span class="text-muted small">검색 결과 {{ "{:,}".format(total) }}건</span>
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <span class="small">
+    표시 중 <strong>{{ "{:,}".format(vehicles|length) }}</strong>건 /
+    필터 결과 <strong>{{ "{:,}".format(total) }}</strong>건 /
+    전체 저장 <strong>{{ "{:,}".format(total_all) }}</strong>건
+  </span>
   <span class="text-muted small">페이지 {{ page }} / {{ pages or 1 }}</span>
 </div>
 
@@ -61,6 +76,7 @@
     <table class="wc-table">
       <thead>
         <tr>
+          <th>#</th>
           <th>제조사</th>
           <th>차량</th>
           <th>등급</th>
@@ -76,10 +92,11 @@
       <tbody>
       {% for v in vehicles %}
         <tr>
+          <td>{{ v.id }}</td>
           <td>{{ v.car_maker or "-" }}</td>
           <td>{{ v.car_model or "-" }}</td>
           <td>{{ v.car_grade or "-" }}</td>
-          <td>{{ v.car_subgrade or "-" }}</td>
+          <td>{% if v.car_subgrade and v.car_subgrade != 'NULL' %}{{ v.car_subgrade }}{% else %}-{% endif %}</td>
           <td>{{ v.car_year or "-" }}</td>
           <td>{% if v.car_km is not none %}{{ "{:,}".format(v.car_km) }}{% else %}-{% endif %}</td>
           <td class="price-cell">{% if v.car_price is not none %}{{ "{:,}".format(v.car_price) }}{% else %}-{% endif %}</td>
@@ -97,7 +114,7 @@
 {% if pages > 1 %}
 <nav class="mt-4" aria-label="페이지">
   <ul class="pagination justify-content-center flex-wrap">
-    {% set q = 'maker=' ~ (maker or '') ~ '&model=' ~ (model or '') ~ '&subgrade=' ~ (subgrade or '') %}
+    {% set q = 'maker=' ~ (maker or '') ~ '&model=' ~ (model or '') ~ '&subgrade=' ~ (subgrade or '') ~ '&per_page=' ~ per_page %}
     <li class="page-item {% if page <= 1 %}disabled{% endif %}">
       <a class="page-link" href="?{{ q }}&page={{ page - 1 }}">이전</a>
     </li>
@@ -119,19 +136,20 @@
 
 <script>
 (() => {
-  const maker = document.getElementById("maker");
-  const model = document.getElementById("model");
-  if (!maker || !model) return;
-  maker.addEventListener("change", () => {
-    model.value = "";
-    const sub = document.getElementById("subgrade");
-    if (sub) sub.value = "";
-    maker.form.submit();
-  });
-  model.addEventListener("change", () => {
-    const sub = document.getElementById("subgrade");
-    if (sub) sub.value = "";
-    model.form.submit();
+  const form = document.getElementById("vehicle-filter-form");
+  if (!form) return;
+  ["maker", "model", "per_page"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("change", () => {
+      if (id === "maker") {
+        form.model.value = "";
+        form.subgrade.value = "";
+      } else if (id === "model") {
+        form.subgrade.value = "";
+      }
+      form.submit();
+    });
   });
 })();
 </script>

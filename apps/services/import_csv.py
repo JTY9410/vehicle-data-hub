@@ -28,28 +28,37 @@ def _parse_scraped_at(raw: str | None) -> datetime | None:
     return dt
 
 
+def _clean(value: str | None) -> str | None:
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s or s.upper() == "NULL":
+        return None
+    return s
+
+
 def _apply_row(vehicle: Vehicle, row: dict, scraped_at: datetime | None, price: int) -> None:
-    vehicle.car_no = row.get("car_no") or None
-    vehicle.car_year = row.get("car_year") or None
+    vehicle.car_no = _clean(row.get("car_no"))
+    vehicle.car_year = _clean(row.get("car_year"))
     vehicle.car_km = parse_km(row.get("car_km"))
     vehicle.car_price = price
-    vehicle.car_maker = row.get("car_maker") or None
-    vehicle.car_model = row.get("car_model") or None
-    vehicle.car_submodel = row.get("car_submodel") or None
-    vehicle.car_grade = row.get("car_grade") or None
-    vehicle.car_subgrade = row.get("car_subgrade") or None
-    vehicle.car_fuel = row.get("car_fuel") or None
-    vehicle.car_mission = row.get("car_mission") or None
-    vehicle.car_color = row.get("car_color") or None
-    vehicle.car_location = row.get("car_location") or None
-    vehicle.car_import_yn = row.get("car_import_yn") or None
-    vehicle.car_cc = row.get("car_cc") or None
-    vehicle.car_type = row.get("car_type") or None
-    vehicle.car_seat = row.get("car_seat") or None
-    vehicle.detail_info = row.get("detail_info") or None
-    vehicle.option_info = row.get("option_info") or None
-    vehicle.diag_info = row.get("diag_info") or None
-    vehicle.url_link = row.get("url_link") or None
+    vehicle.car_maker = _clean(row.get("car_maker"))
+    vehicle.car_model = _clean(row.get("car_model"))
+    vehicle.car_submodel = _clean(row.get("car_submodel"))
+    vehicle.car_grade = _clean(row.get("car_grade"))
+    vehicle.car_subgrade = _clean(row.get("car_subgrade"))
+    vehicle.car_fuel = _clean(row.get("car_fuel"))
+    vehicle.car_mission = _clean(row.get("car_mission"))
+    vehicle.car_color = _clean(row.get("car_color"))
+    vehicle.car_location = _clean(row.get("car_location"))
+    vehicle.car_import_yn = _clean(row.get("car_import_yn"))
+    vehicle.car_cc = _clean(row.get("car_cc"))
+    vehicle.car_type = _clean(row.get("car_type"))
+    vehicle.car_seat = _clean(row.get("car_seat"))
+    vehicle.detail_info = _clean(row.get("detail_info"))
+    vehicle.option_info = _clean(row.get("option_info"))
+    vehicle.diag_info = _clean(row.get("diag_info"))
+    vehicle.url_link = _clean(row.get("url_link"))
     vehicle.scraped_at = scraped_at
     vehicle.updated_at = utcnow()
 
