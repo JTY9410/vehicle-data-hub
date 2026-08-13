@@ -86,11 +86,15 @@ def _flush_chunk(job: ImportJob, pending: list[dict]) -> None:
 
         existing_ts = existing.scraped_at
         incoming_ts = item["scraped_at"]
-        if existing_ts is not None and (incoming_ts is None or incoming_ts <= existing_ts):
-            job.skipped_rows += 1
-        else:
+        newer = existing_ts is None or (
+            incoming_ts is not None and incoming_ts > existing_ts
+        )
+        needs_backfill = existing.source_id is None and _clean(item["row"].get("id"))
+        if newer or needs_backfill:
             _apply_row(existing, item["row"], item["scraped_at"], item["price"])
             job.saved_rows += 1
+        else:
+            job.skipped_rows += 1
 
     db.session.commit()
 
