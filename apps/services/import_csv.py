@@ -4,11 +4,13 @@ import csv
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sqlalchemy import tuple_
+
 from apps.extensions import db
 from apps.models import ImportJob, Vehicle, utcnow
 from apps.services.filters import parse_km, parse_price_manwon, should_reject_row
 
-CHUNK_SIZE = 500
+CHUNK_SIZE = 1000
 
 
 def _parse_scraped_at(raw: str | None) -> datetime | None:
@@ -52,6 +54,37 @@ def _apply_row(vehicle: Vehicle, row: dict, scraped_at: datetime | None, price: 
     vehicle.updated_at = utcnow()
 
 
+def _flush_chunk(job: ImportJob, pending: list[dict]) -> None:
+    if not pending:
+        return
+    keys = [(p["site_type"], p["site_id"]) for p in pending]
+    existing_rows = db.session.execute(
+        db.select(Vehicle).where(tuple_(Vehicle.site_type, Vehicle.site_id).in_(keys))
+    ).scalars().all()
+    existing_map = {(v.site_type, v.site_id): v for v in existing_rows}
+
+    for item in pending:
+        key = (item["site_type"], item["site_id"])
+        existing = existing_map.get(key)
+        if existing is None:
+            vehicle = Vehicle(site_type=item["site_type"], site_id=item["site_id"])
+            _apply_row(vehicle, item["row"], item["scraped_at"], item["price"])
+            db.session.add(vehicle)
+            existing_map[key] = vehicle
+            job.saved_rows += 1
+            continue
+
+        existing_ts = existing.scraped_at
+        incoming_ts = item["scraped_at"]
+        if existing_ts is not None and (incoming_ts is None or incoming_ts <= existing_ts):
+            job.skipped_rows += 1
+        else:
+            _apply_row(existing, item["row"], item["scraped_at"], item["price"])
+            job.saved_rows += 1
+
+    db.session.commit()
+
+
 def import_csv_file(path: str | Path, source: str, filename: str | None = None) -> ImportJob:
     path = Path(path)
     job = ImportJob(
@@ -66,7 +99,7 @@ def import_csv_file(path: str | Path, source: str, filename: str | None = None) 
     try:
         with path.open("r", encoding="utf-8-sig", newline="") as fh:
             reader = csv.DictReader(fh)
-            batch = 0
+            pending: list[dict] = []
             for row in reader:
                 job.total_rows += 1
                 job.processed_rows += 1
@@ -78,38 +111,26 @@ def import_csv_file(path: str | Path, source: str, filename: str | None = None) 
                 )
                 if reject:
                     job.rejected_rows += 1
-                    batch += 1
-                    if batch >= CHUNK_SIZE:
+                    if job.processed_rows % CHUNK_SIZE == 0:
                         db.session.commit()
-                        batch = 0
                     continue
 
                 price = parse_price_manwon(row.get("car_price"))
-                scraped_at = _parse_scraped_at(row.get("created_at"))
-                existing = db.session.execute(
-                    db.select(Vehicle).filter_by(site_type=site_type, site_id=site_id)
-                ).scalar_one_or_none()
+                assert price is not None
+                pending.append(
+                    {
+                        "site_type": site_type,
+                        "site_id": site_id,
+                        "row": row,
+                        "scraped_at": _parse_scraped_at(row.get("created_at")),
+                        "price": price,
+                    }
+                )
+                if len(pending) >= CHUNK_SIZE:
+                    _flush_chunk(job, pending)
+                    pending = []
 
-                if existing is None:
-                    vehicle = Vehicle(site_type=site_type, site_id=site_id)
-                    _apply_row(vehicle, row, scraped_at, price)  # type: ignore[arg-type]
-                    db.session.add(vehicle)
-                    job.saved_rows += 1
-                else:
-                    existing_ts = existing.scraped_at
-                    incoming_ts = scraped_at
-                    if existing_ts is not None and (
-                        incoming_ts is None or incoming_ts <= existing_ts
-                    ):
-                        job.skipped_rows += 1
-                    else:
-                        _apply_row(existing, row, scraped_at, price)  # type: ignore[arg-type]
-                        job.saved_rows += 1
-
-                batch += 1
-                if batch >= CHUNK_SIZE:
-                    db.session.commit()
-                    batch = 0
+            _flush_chunk(job, pending)
 
         job.status = "completed"
         job.finished_at = utcnow()
