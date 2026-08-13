@@ -1,0 +1,6 @@
+id,car_import_yn,site_type,site_id,car_no,car_year,car_km,car_price,car_maker,car_model,car_submodel,car_grade,car_subgrade,car_fuel,car_mission,car_color,car_location,detail_info,option_info,diag_info,url_link,created_at,car_cc,car_type,car_seat
+1,N,encar,site-keep,12가3456,2020,10000,1500,현대,쏘나타,,,,가솔린,오토,흰색,서울,,,,,2024-01-01T00:00:00+00:00,,,
+2,N,encar,site-rental,12하3456,2020,10000,1500,현대,쏘나타,,,,가솔린,오토,흰색,서울,,,,,2024-01-01T00:00:00+00:00,,,
+3,N,encar,site-badprice,12나3456,2020,10000,9999,현대,쏘나타,,,,가솔린,오토,흰색,서울,,,,,2024-01-01T00:00:00+00:00,,,
+4,N,encar,site-upsert,12다1111,2020,10000,1000,현대,쏘나타,,,,가솔린,오토,흰색,서울,,,,,2024-01-01T00:00:00+00:00,,,
+5,N,encar,site-upsert,12다1111,2021,20000,2200,현대,쏘나타,,,,가솔린,오토,검정,서울,,,,,2024-06-01T00:00:00+00:00,,,

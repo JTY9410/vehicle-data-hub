@@ -8,4 +8,8 @@ instance/
 .DS_Store
 uploads/
 data/
+.worktrees/
+worktrees/
 *.csv
+!tests/fixtures/*.csv
+.pytest_cache/

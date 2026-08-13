@@ -24,7 +24,30 @@ def create_app(config_object="config.Config"):
     csrf.init_app(app)
 
     from apps import models  # noqa: F401
+    import apps.auth  # noqa: F401
     from apps.routes.health import bp as health_bp
 
     app.register_blueprint(health_bp)
+    _register_cli(app)
     return app
+
+
+def _register_cli(app):
+    import click
+
+    from apps.cli import seed_admin_user
+    from apps.services.import_csv import import_csv_file
+
+    @app.cli.command("seed-admin")
+    def seed_admin():
+        seed_admin_user()
+        click.echo("admin seeded")
+
+    @app.cli.command("import-csv")
+    @click.argument("path")
+    def import_csv_cmd(path):
+        job = import_csv_file(path, source="cli")
+        click.echo(
+            f"status={job.status} saved={job.saved_rows} "
+            f"rejected={job.rejected_rows} skipped={job.skipped_rows}"
+        )
