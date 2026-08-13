@@ -25,9 +25,14 @@ def create_app(config_object="config.Config"):
 
     from apps import models  # noqa: F401
     import apps.auth  # noqa: F401
+    from apps.routes.admin import bp as admin_bp
+    from apps.routes.api import bp as api_bp
     from apps.routes.health import bp as health_bp
 
     app.register_blueprint(health_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(api_bp)
+    csrf.exempt(api_bp)
     _register_cli(app)
     return app
 

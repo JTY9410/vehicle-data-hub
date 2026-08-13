@@ -1,0 +1,54 @@
+<!--
+  [UI Flow]
+  1. Auth: session cookie / login
+  2. Data: GET current page
+  3. States: loading | empty | error | success via flash
+  4. Actions → side nav destinations
+-->
+<!doctype html>
+<html lang="ko" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1f6f5b">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+  <title>{% block title %}Vehicle Data Hub{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+  <div id="inapp-escape" class="d-none"></div>
+  <div class="app-shell">
+    {% if current_user.is_authenticated %}
+    <aside class="side-nav glass">
+      <div class="brand">Vehicle Hub</div>
+      <nav>
+        <a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">대시보드</a>
+        <a href="{{ url_for('admin.upload') }}" class="{% if request.endpoint and 'upload' in request.endpoint %}active{% endif %}">CSV 업로드</a>
+        <a href="{{ url_for('admin.api_keys') }}" class="{% if request.endpoint and 'api_keys' in request.endpoint %}active{% endif %}">API 키</a>
+      </nav>
+      <form method="post" action="{{ url_for('admin.logout') }}" class="mt-auto">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-outline-secondary w-100">로그아웃</button>
+      </form>
+    </aside>
+    {% endif %}
+    <main class="main-panel">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} glass" role="alert">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sw-register.js') }}"></script>
+</body>
+</html>

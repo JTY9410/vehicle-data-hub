@@ -1,0 +1,43 @@
+<!--
+  [UI Flow]
+  1. Auth required
+  2. Data: GET / → vehicle_count, jobs
+  3. States: empty jobs | list
+  4. Actions → upload / api-keys
+-->
+{% extends "base.html" %}
+{% block title %}대시보드 · Vehicle Hub{% endblock %}
+{% block content %}
+<h1 class="page-title">대시보드</h1>
+<p class="text-muted">저장된 매물과 최근 적재 현황</p>
+<div class="stat-grid">
+  <div class="glass card-panel">
+    <div class="stat-label">차량 데이터</div>
+    <div class="stat-value">{{ vehicle_count }}</div>
+  </div>
+</div>
+<div class="glass card-panel mt-4">
+  <h2 class="h5">최근 적재 작업</h2>
+  {% if not jobs %}
+  <p class="text-muted mb-0">아직 적재 이력이 없습니다.</p>
+  {% else %}
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>ID</th><th>파일</th><th>상태</th><th>저장</th><th>거부</th><th>스킵</th></tr></thead>
+      <tbody>
+      {% for j in jobs %}
+        <tr>
+          <td>{{ j.id }}</td>
+          <td>{{ j.filename }}</td>
+          <td>{{ j.status }}</td>
+          <td>{{ j.saved_rows }}</td>
+          <td>{{ j.rejected_rows }}</td>
+          <td>{{ j.skipped_rows }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

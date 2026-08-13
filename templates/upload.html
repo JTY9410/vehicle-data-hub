@@ -1,0 +1,38 @@
+<!--
+  [UI Flow]
+  1. Auth required
+  2. Data: POST /upload multipart → ImportJob
+  3. States: form | progress result
+  4. Actions → dashboard
+-->
+{% extends "base.html" %}
+{% block title %}CSV 업로드 · Vehicle Hub{% endblock %}
+{% block content %}
+<h1 class="page-title">CSV 업로드</h1>
+<p class="text-muted">렌트카(하/허/호)·비정상 가격(≤0 또는 ≥9999)은 저장되지 않습니다. 가격 단위: 만원.</p>
+<div class="glass card-panel">
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.upload') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-3">
+      <label class="form-label" for="file">CSV 파일</label>
+      <input class="form-control" type="file" id="file" name="file" accept=".csv" required>
+    </div>
+    <button class="btn btn-accent" type="submit">업로드 및 적재</button>
+  </form>
+</div>
+{% if job %}
+<div class="glass card-panel mt-4">
+  <h2 class="h5">작업 #{{ job.id }} · {{ job.status }}</h2>
+  <div class="progress mb-3" role="progressbar" aria-valuenow="{{ job.processed_rows }}" aria-valuemin="0" aria-valuemax="{{ job.total_rows or 1 }}">
+    {% set pct = (100 * job.processed_rows / job.total_rows) if job.total_rows else 100 %}
+    <div class="progress-bar" style="width: {{ pct }}%">{{ pct|int }}%</div>
+  </div>
+  <ul class="mb-0">
+    <li>전체 {{ job.total_rows }}</li>
+    <li>저장 {{ job.saved_rows }}</li>
+    <li>거부 {{ job.rejected_rows }}</li>
+    <li>스킵 {{ job.skipped_rows }}</li>
+  </ul>
+</div>
+{% endif %}
+{% endblock %}
