@@ -104,6 +104,7 @@
           <th>가격(만원)</th>
           <th>번호</th>
           <th>저장일자</th>
+          <th>원문링크</th>
         </tr>
       </thead>
       <tbody>
@@ -119,6 +120,13 @@
           <td class="price-cell">{% if v.car_price is not none %}{{ "{:,}".format(v.car_price) }}{% else %}-{% endif %}</td>
           <td>{{ v.car_no or "-" }}</td>
           <td class="small">{% if v.scraped_at %}{{ v.scraped_at.strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}</td>
+          <td class="link-cell">
+            {% if v.url_link and v.url_link != 'NULL' %}
+            <a href="{{ v.url_link }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">보기</a>
+            {% else %}
+            <span class="text-muted">-</span>
+            {% endif %}
+          </td>
         </tr>
       {% endfor %}
       </tbody>

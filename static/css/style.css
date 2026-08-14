@@ -371,12 +371,29 @@ body.auth-shell .app-stage {
 }
 
 .vehicles-data-table {
-  min-width: 1180px;
-  width: max(100%, 1180px);
+  min-width: 1320px;
+  width: max(100%, 1320px);
 }
 
 .vehicles-data-table tbody td {
   white-space: nowrap;
+}
+
+.vehicles-data-table .link-cell {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--wc-bg);
+  box-shadow: -1px 0 0 var(--wc-border);
+}
+
+.vehicles-data-table thead th:last-child {
+  position: sticky;
+  right: 0;
+  top: 0;
+  z-index: 4;
+  background: var(--wc-bg-lavender);
+  box-shadow: -1px 0 0 var(--wc-border);
 }
 
 .vehicles-data-table thead th {
