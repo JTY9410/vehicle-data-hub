@@ -12,6 +12,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required, login_user, logout_user
+from sqlalchemy.orm import load_only
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -106,11 +107,11 @@ def _valid_text(column):
 
 
 def _estimate_vehicle_count() -> int:
-    """전체 건수 추정(pg_class). exact count(*) 는 20만 건에서 서버리스 타임아웃을 유발한다."""
+    """전체 건수 추정. exact count(*)는 타임아웃 날 수 있어 짧게만 시도한다."""
     try:
         est = db.session.execute(
             db.text(
-                "SELECT GREATEST(reltuples::bigint, 0) "
+                "SELECT reltuples::bigint "
                 "FROM pg_class WHERE oid = 'public.vehicles'::regclass"
             )
         ).scalar()
@@ -118,10 +119,8 @@ def _estimate_vehicle_count() -> int:
             return int(est)
     except Exception:  # noqa: BLE001
         db.session.rollback()
-    # Vercel에서는 exact count 금지 (요청 전체가 타임아웃됨)
-    if os.environ.get("VERCEL"):
-        return 0
     try:
+        db.session.execute(db.text("SET LOCAL statement_timeout = '2500'"))
         return int(
             db.session.execute(
                 db.select(db.func.count()).select_from(Vehicle)
@@ -133,7 +132,7 @@ def _estimate_vehicle_count() -> int:
         return 0
 
 
-_LIST_COLS = (
+_LIST_LOAD = load_only(
     Vehicle.id,
     Vehicle.maker_no,
     Vehicle.model_no,
@@ -191,7 +190,7 @@ def vehicles():
 
     # 개별 쿼리가 길면 전체 함수가 응답 없이 끊김 → DB 쪽 상한
     try:
-        db.session.execute(db.text("SET LOCAL statement_timeout = '8000'"))
+        db.session.execute(db.text("SET LOCAL statement_timeout = '12000'"))
     except Exception:  # noqa: BLE001
         db.session.rollback()
 
@@ -234,7 +233,7 @@ def vehicles():
             .order_by(VehicleGradeDetail.gdetail_name)
         ).scalars().all()
 
-    stmt = db.select(*_LIST_COLS)
+    stmt = db.select(Vehicle).options(_LIST_LOAD)
     if maker_no:
         stmt = stmt.where(Vehicle.maker_no == maker_no)
     elif maker:
@@ -258,13 +257,13 @@ def vehicles():
         try:
             total = db.session.execute(
                 db.select(db.func.count()).select_from(
-                    stmt.with_only_columns(Vehicle.id).order_by(None).subquery()
+                    stmt.order_by(None).with_only_columns(Vehicle.id).subquery()
                 )
             ).scalar_one()
         except Exception:  # noqa: BLE001
             db.session.rollback()
             try:
-                db.session.execute(db.text("SET LOCAL statement_timeout = '8000'"))
+                db.session.execute(db.text("SET LOCAL statement_timeout = '12000'"))
             except Exception:  # noqa: BLE001
                 db.session.rollback()
             total = total_all
@@ -281,7 +280,13 @@ def vehicles():
 
     rows = db.session.execute(
         stmt.order_by(*order).offset((page - 1) * per_page).limit(per_page)
-    ).all()
+    ).scalars().all()
+    # 통계(reltuples)가 비어 있어도 실제 행이 있으면 목록은 보여 준다
+    if rows and total == 0:
+        total = max(total_all, len(rows))
+        pages = max((total + per_page - 1) // per_page, 1)
+    if rows and total_all == 0:
+        total_all = total
 
     return render_template(
         "vehicles.html",
