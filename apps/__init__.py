@@ -43,12 +43,16 @@ def create_app(config_object="config.Config"):
         csrf.exempt(api_bp)
         _register_cli(app)
 
+        # Vercel: 부팅 시 DB 실패해도 라우트는 유지 (404 fallback 방지)
         if os.environ.get("VERCEL"):
-            with app.app_context():
-                db.create_all()
-                from apps.cli import seed_admin_user
+            try:
+                with app.app_context():
+                    db.create_all()
+                    from apps.cli import seed_admin_user
 
-                seed_admin_user()
+                    seed_admin_user()
+            except Exception:  # noqa: BLE001
+                app.logger.exception("vercel db bootstrap skipped")
 
         return app
     except Exception:  # noqa: BLE001
@@ -60,6 +64,20 @@ def create_app(config_object="config.Config"):
             from flask import jsonify
 
             return jsonify(status="boot_error", detail=err), 500
+
+        @fallback.get("/")
+        @fallback.get("/login")
+        def boot_error_page():
+            from flask import jsonify
+
+            return (
+                jsonify(
+                    status="boot_error",
+                    message="앱 부팅 실패. /healthz 의 detail 을 확인하세요.",
+                    detail=err,
+                ),
+                500,
+            )
 
         return fallback
 

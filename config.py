@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from sqlalchemy.pool import NullPool
 
 load_dotenv()
 
@@ -18,6 +19,42 @@ def _normalize_database_url(url: str) -> str:
     return url
 
 
+def _prefer_supabase_pooler(url: str) -> str:
+    """Direct db.*.supabase.co 는 IPv6-only인 경우가 많아 Vercel에서 실패 → pooler로 치환."""
+    # postgresql+psycopg://user:pass@db.REF.supabase.co:5432/postgres?...
+    marker = "@db."
+    if ".supabase.co" not in url or marker not in url:
+        return url
+    try:
+        pre, rest = url.split(marker, 1)
+        host_and_more = rest  # REF.supabase.co:5432/postgres?...
+        ref = host_and_more.split(".supabase.co", 1)[0]
+        after = host_and_more.split(".supabase.co", 1)[1]  # :5432/postgres?...
+        # user may be "postgres" — pooler wants postgres.REF
+        scheme, creds = pre.split("://", 1)
+        if ":" in creds:
+            user, password = creds.split(":", 1)
+        else:
+            user, password = creds, ""
+        if user == "postgres":
+            user = f"postgres.{ref}"
+        # Transaction pooler (serverless)
+        path = after
+        if path.startswith(":5432"):
+            path = ":6543" + path[len(":5432") :]
+        elif path.startswith("/"):
+            path = ":6543" + path
+        sep = "&" if "?" in path else "?"
+        if "sslmode=" not in path:
+            path = f"{path}{sep}sslmode=require"
+            sep = "&"
+        if "pgbouncer=" not in path:
+            path = f"{path}{sep}pgbouncer=true"
+        return f"{scheme}://{user}:{password}@aws-0-ap-northeast-2.pooler.supabase.com{path}"
+    except Exception:  # noqa: BLE001
+        return url
+
+
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-change-me")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -25,18 +62,26 @@ class Config:
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1004wecar")
     API_PER_PAGE_MAX = 100
 
+    _raw_db = os.environ.get("DATABASE_URL")
     if IS_VERCEL:
-        # Ephemeral unless DATABASE_URL points to hosted Postgres (e.g. Supabase)
-        SQLALCHEMY_DATABASE_URI = _normalize_database_url(
-            os.environ.get("DATABASE_URL", "sqlite:////tmp/vehicle_hub.db")
+        uri = _normalize_database_url(
+            _raw_db or "sqlite:////tmp/vehicle_hub.db"
         )
+        uri = _prefer_supabase_pooler(uri)
+        SQLALCHEMY_DATABASE_URI = uri
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            "poolclass": NullPool,
+            "connect_args": {
+                "sslmode": "require",
+                "prepare_threshold": None,
+                "connect_timeout": 10,
+            },
+        }
         UPLOAD_FOLDER = Path("/tmp/vehicle_hub_uploads")
         MAX_CONTENT_LENGTH = 4 * 1024 * 1024
     else:
         SQLALCHEMY_DATABASE_URI = _normalize_database_url(
-            os.environ.get(
-                "DATABASE_URL", f"sqlite:///{BASE_DIR / 'instance' / 'app.db'}"
-            )
+            _raw_db or f"sqlite:///{BASE_DIR / 'instance' / 'app.db'}"
         )
         UPLOAD_FOLDER = BASE_DIR / "uploads"
         MAX_CONTENT_LENGTH = 512 * 1024 * 1024
