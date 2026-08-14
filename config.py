@@ -66,6 +66,37 @@ def _strip_pgbouncer_query(url: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment))
 
 
+def _ensure_pooler_username(url: str) -> str:
+    """Pooler는 user가 postgres.<project_ref> 형태여야 함."""
+    if "pooler.supabase.com" not in url:
+        return url
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    if "@" not in parts.netloc:
+        return url
+    creds, hostport = parts.netloc.rsplit("@", 1)
+    if ":" in creds:
+        user, password = creds.split(":", 1)
+    else:
+        user, password = creds, ""
+    if "." in (user or ""):
+        return url
+    ref = (os.environ.get("SUPABASE_PROJECT_REF") or "").strip()
+    if user == "postgres" and ref:
+        user = f"postgres.{ref}"
+        return urlunsplit(
+            (
+                parts.scheme,
+                f"{user}:{password}@{hostport}",
+                parts.path,
+                parts.query,
+                parts.fragment,
+            )
+        )
+    return url
+
+
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-change-me")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -86,7 +117,7 @@ class Config:
         uri = _normalize_database_url(
             _raw_db or "sqlite:////tmp/vehicle_hub.db"
         )
-        uri = _prefer_supabase_pooler(uri)
+        uri = _ensure_pooler_username(_prefer_supabase_pooler(uri))
         SQLALCHEMY_DATABASE_URI = uri
         SQLALCHEMY_ENGINE_OPTIONS = {
             "poolclass": NullPool,
