@@ -62,6 +62,14 @@ class Config:
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1004wecar")
     API_PER_PAGE_MAX = 100
 
+    # CSRF / session (Vercel 서버리스에서 만료·Referer 누락 방지)
+    WTF_CSRF_TIME_LIMIT = None
+    WTF_CSRF_HEADERS = ["X-CSRFToken", "X-CSRF-Token"]
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = "Lax"
+
     _raw_db = os.environ.get("DATABASE_URL")
     if IS_VERCEL:
         uri = _normalize_database_url(
@@ -79,6 +87,12 @@ class Config:
         }
         UPLOAD_FOLDER = Path("/tmp/vehicle_hub_uploads")
         MAX_CONTENT_LENGTH = 4 * 1024 * 1024
+        # HTTPS 프록시(Vercel) 뒤에서 세션·CSRF가 깨지지 않도록
+        SESSION_COOKIE_SECURE = True
+        REMEMBER_COOKIE_SECURE = True
+        SESSION_COOKIE_NAME = "vh_session"
+        PREFERRED_URL_SCHEME = "https"
+        WTF_CSRF_SSL_STRICT = False
     else:
         SQLALCHEMY_DATABASE_URI = _normalize_database_url(
             _raw_db or f"sqlite:///{BASE_DIR / 'instance' / 'app.db'}"

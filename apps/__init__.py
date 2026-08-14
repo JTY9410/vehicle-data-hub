@@ -21,6 +21,12 @@ def create_app(config_object="config.Config"):
         app = Flask(__name__, **flask_kwargs)
         app.config.from_object(config_object)
 
+        if os.environ.get("VERCEL"):
+            from werkzeug.middleware.proxy_fix import ProxyFix
+
+            # Vercel 엣지 프록시: https / host 인식
+            app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
         Path(app.instance_path).mkdir(parents=True, exist_ok=True)
         upload = Path(app.config["UPLOAD_FOLDER"])
         upload.mkdir(parents=True, exist_ok=True)

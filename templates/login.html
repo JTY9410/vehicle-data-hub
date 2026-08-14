@@ -17,7 +17,7 @@
       <h1 class="page-title">로그인</h1>
       <p class="page-subtitle mb-0">크롤링 매물 DB · API 허브</p>
     </div>
-    <form method="post" action="{{ url_for('admin.login') }}">
+    <form method="post" action="{{ url_for('admin.login') }}" referrerpolicy="strict-origin-when-cross-origin">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="mb-3">
         <label class="form-label small fw-semibold" for="username">아이디</label>
