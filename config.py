@@ -24,7 +24,8 @@ def _prefer_supabase_pooler(url: str) -> str:
     # postgresql+psycopg://user:pass@db.REF.supabase.co:5432/postgres?...
     marker = "@db."
     if ".supabase.co" not in url or marker not in url:
-        return url
+        # psycopg는 pgbouncer= 쿼리를 연결 옵션으로 해석해 실패함 → 제거
+        return _strip_pgbouncer_query(url)
     try:
         pre, rest = url.split(marker, 1)
         host_and_more = rest  # REF.supabase.co:5432/postgres?...
@@ -38,7 +39,7 @@ def _prefer_supabase_pooler(url: str) -> str:
             user, password = creds, ""
         if user == "postgres":
             user = f"postgres.{ref}"
-        # Transaction pooler (serverless)
+        # Transaction pooler (serverless). prepared statements는 ENGINE_OPTIONS에서 비활성.
         path = after
         if path.startswith(":5432"):
             path = ":6543" + path[len(":5432") :]
@@ -47,12 +48,22 @@ def _prefer_supabase_pooler(url: str) -> str:
         sep = "&" if "?" in path else "?"
         if "sslmode=" not in path:
             path = f"{path}{sep}sslmode=require"
-            sep = "&"
-        if "pgbouncer=" not in path:
-            path = f"{path}{sep}pgbouncer=true"
-        return f"{scheme}://{user}:{password}@aws-0-ap-northeast-2.pooler.supabase.com{path}"
+        return _strip_pgbouncer_query(
+            f"{scheme}://{user}:{password}@aws-0-ap-northeast-2.pooler.supabase.com{path}"
+        )
     except Exception:  # noqa: BLE001
+        return _strip_pgbouncer_query(url)
+
+
+def _strip_pgbouncer_query(url: str) -> str:
+    """psycopg3는 URL의 pgbouncer= 파라미터를 허용하지 않음."""
+    if "pgbouncer=" not in url:
         return url
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    q = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "pgbouncer"]
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment))
 
 
 class Config:

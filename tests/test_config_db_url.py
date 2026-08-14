@@ -1,4 +1,8 @@
-from config import _normalize_database_url, _prefer_supabase_pooler
+from config import (
+    _normalize_database_url,
+    _prefer_supabase_pooler,
+    _strip_pgbouncer_query,
+)
 
 
 def test_normalize_database_url_supabase_style():
@@ -23,8 +27,8 @@ def test_prefer_supabase_pooler_rewrites_direct_host():
     assert "aws-0-ap-northeast-2.pooler.supabase.com" in out
     assert "postgres.rastroihbytrjagdhzrn" in out
     assert ":6543/" in out or ":6543?" in out or out.endswith(":6543/postgres") or ":6543/postgres" in out
-    assert "pgbouncer=true" in out
     assert "sslmode=require" in out
+    assert "pgbouncer=" not in out
     assert "@db." not in out
 
 
@@ -34,3 +38,13 @@ def test_prefer_supabase_pooler_leaves_pooler_unchanged():
         "@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require"
     )
     assert _prefer_supabase_pooler(raw) == raw
+
+
+def test_strip_pgbouncer_query_param():
+    raw = (
+        "postgresql+psycopg://postgres.ref:pass"
+        "@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
+    )
+    out = _prefer_supabase_pooler(raw)
+    assert "pgbouncer=" not in out
+    assert "sslmode=require" in out
