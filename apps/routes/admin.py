@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 from flask import (
     Blueprint,
@@ -105,22 +106,31 @@ def _valid_text(column):
 
 
 def _estimate_vehicle_count() -> int:
-    """전체 건수 추정(pg_class). 서버리스에서 exact count(*) 타임아웃 방지."""
+    """전체 건수 추정(pg_class). exact count(*) 는 20만 건에서 서버리스 타임아웃을 유발한다."""
     try:
         est = db.session.execute(
             db.text(
                 "SELECT GREATEST(reltuples::bigint, 0) "
-                "FROM pg_class WHERE relname = 'vehicles'"
+                "FROM pg_class WHERE oid = 'public.vehicles'::regclass"
             )
         ).scalar()
         if est is not None and int(est) > 0:
             return int(est)
     except Exception:  # noqa: BLE001
         db.session.rollback()
-    return int(
-        db.session.execute(db.select(db.func.count()).select_from(Vehicle)).scalar_one()
-        or 0
-    )
+    # Vercel에서는 exact count 금지 (요청 전체가 타임아웃됨)
+    if os.environ.get("VERCEL"):
+        return 0
+    try:
+        return int(
+            db.session.execute(
+                db.select(db.func.count()).select_from(Vehicle)
+            ).scalar_one()
+            or 0
+        )
+    except Exception:  # noqa: BLE001
+        db.session.rollback()
+        return 0
 
 
 _LIST_COLS = (
@@ -160,6 +170,9 @@ def vehicles():
     per_page = request.args.get("per_page", 100, type=int) or 100
     if per_page not in (50, 100, 200, 500):
         per_page = 100
+    # Vercel 서버리스: 큰 페이지는 HTML 생성·전송에서 타임아웃 위험
+    if os.environ.get("VERCEL") and per_page > 100:
+        per_page = 100
 
     saved_from_dt = parse_date_bound(saved_from, end_of_day=False)
     saved_to_dt = parse_date_bound(saved_to, end_of_day=True)
@@ -175,6 +188,12 @@ def vehicles():
         or saved_from_dt
         or saved_to_dt
     )
+
+    # 개별 쿼리가 길면 전체 함수가 응답 없이 끊김 → DB 쪽 상한
+    try:
+        db.session.execute(db.text("SET LOCAL statement_timeout = '8000'"))
+    except Exception:  # noqa: BLE001
+        db.session.rollback()
 
     total_all = _estimate_vehicle_count()
 
@@ -236,11 +255,19 @@ def vehicles():
         stmt = stmt.where(Vehicle.scraped_at <= saved_to_dt)
 
     if filtered:
-        total = db.session.execute(
-            db.select(db.func.count()).select_from(
-                stmt.with_only_columns(Vehicle.id).order_by(None).subquery()
-            )
-        ).scalar_one()
+        try:
+            total = db.session.execute(
+                db.select(db.func.count()).select_from(
+                    stmt.with_only_columns(Vehicle.id).order_by(None).subquery()
+                )
+            ).scalar_one()
+        except Exception:  # noqa: BLE001
+            db.session.rollback()
+            try:
+                db.session.execute(db.text("SET LOCAL statement_timeout = '8000'"))
+            except Exception:  # noqa: BLE001
+                db.session.rollback()
+            total = total_all
         # 날짜 필터 시 scraped_at 인덱스 활용 (NULLS LAST 금지: PG 풀스캔 유발)
         order = (Vehicle.scraped_at.desc(), Vehicle.id.desc())
     else:

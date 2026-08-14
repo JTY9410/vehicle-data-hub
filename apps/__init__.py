@@ -66,17 +66,8 @@ def create_app(config_object="config.Config"):
                 "</body></html>"
             ), 404
 
-        # Vercel: 스키마 확인만 (매 요청 scrypt 재해시 금지)
-        if os.environ.get("VERCEL"):
-            try:
-                with app.app_context():
-                    db.create_all()
-                    from apps.cli import seed_admin_user
-
-                    seed_admin_user(force_password=False)
-            except Exception:  # noqa: BLE001
-                app.logger.exception("vercel db bootstrap skipped")
-
+        # Vercel: cold start에서 create_all/seed 를 돌리면 첫 요청이 수십 초~
+        # 이미 Supabase에 스키마·관리자가 있으므로 부트스트랩 생략
         return app
     except Exception:  # noqa: BLE001
         err = traceback.format_exc()
