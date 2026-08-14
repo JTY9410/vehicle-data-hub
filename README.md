@@ -33,16 +33,30 @@ vercel --prod
 | Vercel 서버리스 | Transaction pooler (`:6543`, `?pgbouncer=true`) | 커넥션 수 제한 대응 |
 | 로컬 개발 | 기존 Compose Postgres 유지 | 비용·지연 최소화 |
 
+### 이전 절차
+
+1. Supabase Dashboard → **Project Settings → Database** → Connection string (URI) 복사 (비밀번호 포함)
+2. 로컬 덤프·복원:
+   ```bash
+   export SUPABASE_DATABASE_URL='postgresql://postgres:YOUR_PASSWORD@db.PROJECT.supabase.co:5432/postgres'
+   ./scripts/migrate_to_supabase.sh
+   ```
+3. `.env`의 `DATABASE_URL`을 `postgresql+psycopg://...` 형태로 설정
+4. Supabase만으로 기동:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.supabase.yml up -d --build
+   ```
+5. Vercel Environment Variables에 동일 `DATABASE_URL`·`SECRET_KEY` 설정
+
 체크리스트:
 
 1. Supabase 프로젝트에서 Database → Connection string 복사  
 2. `postgresql://...` → 앱이 `postgresql+psycopg://`로 정규화 (`config.py`)  
-3. `flask db upgrade`로 마이그레이션 적용  
-4. 필요 시 `pg_dump`/`pg_restore` 또는 CSV 재적재로 데이터 이전  
+3. `flask db upgrade`로 마이그레이션 적용 (또는 `migrate_to_supabase.sh`)  
+4. 필요 시 CSV 재적재로 데이터 보완  
 5. Vercel·Compose 환경변수에 `DATABASE_URL`·`SECRET_KEY` 설정  
 
-주의: ~20만 행·CSV 청크 upsert는 **Docker + Postgres(또는 Supabase Direct/Session)** 가 본체이고, Vercel은 조회 API용으로 두는 편이 안전합니다.  
-현재 MCP로 연결된 Supabase 프로젝트(`zlotlpcgormyykllries`)는 존재하나, **자동 이전은 아직 하지 않았습니다.** 이전을 진행하려면 승인해 주세요.
+주의: ~20만 행·CSV 청크 upsert는 **Docker + Postgres(또는 Supabase Direct/Session)** 가 본체이고, Vercel은 조회 API용으로 두는 편이 안전합니다.
 
 ## API
 

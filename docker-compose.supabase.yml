@@ -1,0 +1,15 @@
+# Supabase 전용: 로컬 Postgres 없이 web만 기동
+# Direct(db.*.supabase.co)는 IPv6-only일 수 있음 → Session pooler(IPv4) 권장
+# 사용:
+#   export SUPABASE_DATABASE_URL='postgresql+psycopg://postgres.PROJECT:%23PASSWORD@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require'
+#   docker compose -f docker-compose.yml -f docker-compose.supabase.yml up -d --build
+name: vehiclehub
+
+services:
+  db:
+    profiles: ["disabled"]
+
+  web:
+    depends_on: !reset []
+    environment:
+      DATABASE_URL: ${SUPABASE_DATABASE_URL:?SUPABASE_DATABASE_URL 환경변수를 설정하세요}

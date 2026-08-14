@@ -21,6 +21,7 @@ services:
       - "8001:8000"
     env_file: .env
     environment:
+      # 로컬 Compose Postgres (셸 DATABASE_URL 잔여값에 덮이지 않도록 고정)
       DATABASE_URL: postgresql+psycopg://vehicle:vehicle@db:5432/vehicle
     volumes:
       - ./uploads:/app/uploads
