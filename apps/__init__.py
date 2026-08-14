@@ -66,14 +66,14 @@ def create_app(config_object="config.Config"):
                 "</body></html>"
             ), 404
 
-        # Vercel: 부팅 시 DB 실패해도 라우트는 유지 (404 fallback 방지)
+        # Vercel: 스키마 확인만 (매 요청 scrypt 재해시 금지)
         if os.environ.get("VERCEL"):
             try:
                 with app.app_context():
                     db.create_all()
                     from apps.cli import seed_admin_user
 
-                    seed_admin_user()
+                    seed_admin_user(force_password=False)
             except Exception:  # noqa: BLE001
                 app.logger.exception("vercel db bootstrap skipped")
 
@@ -114,8 +114,9 @@ def _register_cli(app):
     from apps.services.import_csv import import_csv_file
 
     @app.cli.command("seed-admin")
-    def seed_admin():
-        seed_admin_user()
+    @click.option("--force-password", is_flag=True, help="환경변수 비밀번호로 해시 강제 갱신")
+    def seed_admin(force_password):
+        seed_admin_user(force_password=force_password)
         click.echo("admin seeded")
 
     @app.cli.command("seed-encar-codes")

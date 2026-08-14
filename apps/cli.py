@@ -5,7 +5,11 @@ from apps.extensions import db
 from apps.models import User
 
 
-def seed_admin_user() -> User:
+def seed_admin_user(*, force_password: bool = False) -> User:
+    """관리자 계정이 없을 때만 생성. force_password 시에만 해시 갱신.
+
+    Vercel cold start마다 scrypt 재해시를 돌리면 요청이 수십 초로 늘어난다.
+    """
     username = current_app.config["ADMIN_USERNAME"]
     password = current_app.config["ADMIN_PASSWORD"]
     user = db.session.execute(
@@ -17,7 +21,9 @@ def seed_admin_user() -> User:
             password_hash=generate_password_hash(password, method="scrypt"),
         )
         db.session.add(user)
-    else:
+        db.session.commit()
+        return user
+    if force_password:
         user.password_hash = generate_password_hash(password, method="scrypt")
-    db.session.commit()
+        db.session.commit()
     return user

@@ -63,9 +63,7 @@ def logout():
 @bp.get("/")
 @login_required
 def dashboard():
-    vehicle_count = db.session.execute(
-        db.select(db.func.count()).select_from(Vehicle)
-    ).scalar_one()
+    vehicle_count = _estimate_vehicle_count()
     jobs = db.session.execute(
         db.select(ImportJob).order_by(ImportJob.id.desc()).limit(10)
     ).scalars().all()
@@ -106,6 +104,45 @@ def _valid_text(column):
     )
 
 
+def _estimate_vehicle_count() -> int:
+    """전체 건수 추정(pg_class). 서버리스에서 exact count(*) 타임아웃 방지."""
+    try:
+        est = db.session.execute(
+            db.text(
+                "SELECT GREATEST(reltuples::bigint, 0) "
+                "FROM pg_class WHERE relname = 'vehicles'"
+            )
+        ).scalar()
+        if est is not None and int(est) > 0:
+            return int(est)
+    except Exception:  # noqa: BLE001
+        db.session.rollback()
+    return int(
+        db.session.execute(db.select(db.func.count()).select_from(Vehicle)).scalar_one()
+        or 0
+    )
+
+
+_LIST_COLS = (
+    Vehicle.id,
+    Vehicle.maker_no,
+    Vehicle.model_no,
+    Vehicle.mdetail_no,
+    Vehicle.grade_no,
+    Vehicle.gdetail_no,
+    Vehicle.car_maker,
+    Vehicle.car_model,
+    Vehicle.car_submodel,
+    Vehicle.car_grade,
+    Vehicle.car_subgrade,
+    Vehicle.car_year,
+    Vehicle.car_price,
+    Vehicle.car_no,
+    Vehicle.scraped_at,
+    Vehicle.url_link,
+)
+
+
 @bp.get("/vehicles")
 @login_required
 def vehicles():
@@ -127,9 +164,19 @@ def vehicles():
     saved_from_dt = parse_date_bound(saved_from, end_of_day=False)
     saved_to_dt = parse_date_bound(saved_to, end_of_day=True)
 
-    total_all = db.session.execute(
-        db.select(db.func.count()).select_from(Vehicle)
-    ).scalar_one()
+    filtered = bool(
+        maker_no
+        or model_no
+        or grade_no
+        or gdetail_no
+        or maker
+        or model
+        or subgrade
+        or saved_from_dt
+        or saved_to_dt
+    )
+
+    total_all = _estimate_vehicle_count()
 
     makers = db.session.execute(
         db.select(VehicleMaker).order_by(VehicleMaker.maker_name)
@@ -168,7 +215,7 @@ def vehicles():
             .order_by(VehicleGradeDetail.gdetail_name)
         ).scalars().all()
 
-    stmt = db.select(Vehicle)
+    stmt = db.select(*_LIST_COLS)
     if maker_no:
         stmt = stmt.where(Vehicle.maker_no == maker_no)
     elif maker:
@@ -188,18 +235,26 @@ def vehicles():
     if saved_to_dt is not None:
         stmt = stmt.where(Vehicle.scraped_at <= saved_to_dt)
 
-    total = db.session.execute(
-        db.select(db.func.count()).select_from(stmt.subquery())
-    ).scalar_one()
+    if filtered:
+        total = db.session.execute(
+            db.select(db.func.count()).select_from(
+                stmt.with_only_columns(Vehicle.id).order_by(None).subquery()
+            )
+        ).scalar_one()
+        # 날짜 필터 시 scraped_at 인덱스 활용 (NULLS LAST 금지: PG 풀스캔 유발)
+        order = (Vehicle.scraped_at.desc(), Vehicle.id.desc())
+    else:
+        total = total_all
+        # PK 역순이 서버리스에서 가장 빠름
+        order = (Vehicle.id.desc(),)
+
     pages = max((total + per_page - 1) // per_page, 1) if total else 0
     if pages and page > pages:
         page = pages
 
     rows = db.session.execute(
-        stmt.order_by(Vehicle.scraped_at.desc().nullslast(), Vehicle.id.desc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
-    ).scalars().all()
+        stmt.order_by(*order).offset((page - 1) * per_page).limit(per_page)
+    ).all()
 
     return render_template(
         "vehicles.html",
