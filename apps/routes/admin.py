@@ -39,13 +39,17 @@ def login():
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
-        user = db.session.execute(
-            db.select(User).filter_by(username=username)
-        ).scalar_one_or_none()
-        if user and check_password_hash(user.password_hash, password):
-            login_user(user)
-            return redirect(url_for("admin.dashboard"))
-        flash("아이디 또는 비밀번호가 올바르지 않습니다.", "danger")
+        try:
+            user = db.session.execute(
+                db.select(User).filter_by(username=username)
+            ).scalar_one_or_none()
+            if user and check_password_hash(user.password_hash, password):
+                login_user(user)
+                return redirect(url_for("admin.dashboard"))
+            flash("아이디 또는 비밀번호가 올바르지 않습니다.", "danger")
+        except Exception as exc:  # noqa: BLE001
+            db.session.rollback()
+            flash(f"로그인 처리 중 오류: {exc}", "danger")
     return render_template("login.html")
 
 
