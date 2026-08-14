@@ -70,6 +70,12 @@ def dashboard():
     )
 
 
+@bp.get("/dashboard")
+@login_required
+def dashboard_alias():
+    return redirect(url_for("admin.dashboard"))
+
+
 @bp.post("/reset-data")
 @login_required
 def reset_data():

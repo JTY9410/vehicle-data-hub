@@ -14,12 +14,12 @@ docker compose up -d --build
 
 ## Vercel
 
-Vercel은 서버리스라 **대용량 CSV 업로드·장기 DB**에는 Docker가 적합합니다.  
-Vercel 배포 시 반드시 원격 Postgres `DATABASE_URL` 과 `SECRET_KEY` 를 프로젝트 Environment Variables에 설정하세요.
+**정상 접속 URL:** https://vehicle-data-hub-alpha.vercel.app/login  
 
-```bash
-vercel --prod
-```
+주의: `https://vehicle-data-hub.vercel.app` 은 **다른 Next.js 프로젝트**가 점유 중이라 이 Flask 앱이 아닙니다(404).
+
+Vercel은 서버리스라 **대용량 CSV 업로드·장기 DB**에는 Docker가 적합합니다.  
+배포 시 `DATABASE_URL`(Supabase Session/Transaction pooler)·`SECRET_KEY` 환경변수가 필요합니다.
 
 ## Supabase (선택 · 검토)
 

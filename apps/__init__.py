@@ -43,6 +43,23 @@ def create_app(config_object="config.Config"):
         csrf.exempt(api_bp)
         _register_cli(app)
 
+        @app.errorhandler(404)
+        def not_found(_err):
+            from flask import jsonify, request
+
+            if request.path.startswith("/api/"):
+                return jsonify(error="not_found", path=request.path), 404
+            # HTML 친화적 안내 (Werkzeug 기본 Not Found 대신)
+            return (
+                "<!doctype html><html lang=ko><meta charset=utf-8>"
+                "<title>페이지 없음</title>"
+                "<body style='font-family:sans-serif;padding:2rem'>"
+                "<h1>페이지를 찾을 수 없습니다</h1>"
+                f"<p>경로: <code>{request.path}</code></p>"
+                "<p><a href='/login'>로그인</a> · <a href='/'>대시보드</a></p>"
+                "</body></html>"
+            ), 404
+
         # Vercel: 부팅 시 DB 실패해도 라우트는 유지 (404 fallback 방지)
         if os.environ.get("VERCEL"):
             try:
