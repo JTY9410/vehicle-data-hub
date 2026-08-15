@@ -15,7 +15,7 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("api_keys", sa.Column("key_secret", sa.Text(), nullable=True))
+    op.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_secret TEXT")
 
 
 def downgrade():
