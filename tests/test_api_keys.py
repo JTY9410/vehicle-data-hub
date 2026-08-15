@@ -5,10 +5,13 @@ from apps.services.api_keys import create_api_key, verify_api_key
 
 def test_api_key_roundtrip(app):
     with app.app_context():
+        from apps.services.api_keys import reveal_api_key
+
         row, raw = create_api_key("partner")
         assert row.key_prefix == raw[:8]
         assert verify_api_key(raw) is not None
         assert verify_api_key("bogus") is None
+        assert reveal_api_key(row.id) == raw
 
 
 def test_seed_admin(app):

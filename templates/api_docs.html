@@ -12,7 +12,7 @@
   <div>
     <p class="section-kicker mb-1">SPEC</p>
     <h1 class="page-title">API 명세서</h1>
-    <p class="page-subtitle mb-0">타 프로그램 연동용 조회 API 문서입니다.</p>
+    <p class="page-subtitle mb-0">타 프로그램에서 차량 데이터를 조회할 때 이 문서를 기준으로 호출하면 됩니다.</p>
   </div>
   <div class="d-flex gap-2">
     <button type="button" class="btn btn-primary" onclick="window.print()">명세서 출력</button>
@@ -22,21 +22,33 @@
 
 <article class="glass-card p-4 api-spec" id="api-spec">
   <h2 class="h4">1. 인증</h2>
-  <p>모든 <code>/api/v1/*</code> 요청에 헤더를 포함합니다.</p>
-  <pre class="bg-light p-3 rounded"><code>X-API-Key: &lt;발급받은_API_키&gt;</code></pre>
-  <p>키가 없거나 비활성이면 <code>401</code>을 반환합니다.</p>
+  <p>모든 <code>/api/v1/*</code> 요청에 아래 중 <strong>하나</strong>를 넣습니다. CORS는 허용되어 브라우저·서버 모두에서 호출할 수 있습니다.</p>
+  <pre class="bg-light p-3 rounded"><code>X-API-Key: &lt;발급받은_API_키&gt;
+
+# 또는
+Authorization: Bearer &lt;발급받은_API_키&gt;</code></pre>
+  <p>키가 없거나 폐기되면 <code>401</code>과 <code>{"error":"unauthorized"}</code>를 반환합니다.</p>
 
   <h2 class="h4 mt-4">2. Base URL</h2>
   <pre class="bg-light p-3 rounded"><code>{{ request.host_url.rstrip('/') }}/api/v1</code></pre>
+  <p class="small text-muted">운영 예: <code>https://vehicle-data-hub-alpha.vercel.app/api/v1</code></p>
 
-  <h2 class="h4 mt-4">3. 공통 응답 필드 (차량)</h2>
-  <p>가격 단위는 <strong>만원</strong>입니다. CSV 업로드 스키마와 동일합니다.</p>
+  <h2 class="h4 mt-4">3. 공통 규칙</h2>
+  <ul>
+    <li>응답 JSON, 문자셋 UTF-8.</li>
+    <li>가격 단위는 항상 <strong>만원</strong> (<code>price_unit: "만원"</code>).</li>
+    <li>목록 기본 응답에는 <code>detail_info</code>, <code>option_info</code>, <code>diag_info</code>가 없습니다. 상세 텍스트가 필요하면 <code>include=text</code> 또는 상세 API를 쓰세요 (Vercel 4.5MB 제한).</li>
+    <li>페이지 기본 <code>per_page=20</code>, 최대 <code>{{ config.API_PER_PAGE_MAX }}</code>.</li>
+    <li>없는 상세 id는 <code>404</code> <code>{"error":"not_found"}</code>.</li>
+  </ul>
+
+  <h2 class="h4 mt-4">4. 차량 필드</h2>
   <div class="wc-table-wrap">
     <table class="wc-table">
       <thead><tr><th>필드</th><th>설명</th></tr></thead>
       <tbody>
         <tr><td><code>id</code></td><td>원본 CSV id (없으면 DB id 문자열)</td></tr>
-        <tr><td><code>db_id</code></td><td>DB 내부 PK (상세 조회 경로용)</td></tr>
+        <tr><td><code>db_id</code></td><td>DB PK. 상세 경로 <code>/vehicles/{db_id}</code>에 사용</td></tr>
         <tr><td><code>car_import_yn</code></td><td>수입차 여부</td></tr>
         <tr><td><code>site_type</code></td><td>사이트 구분</td></tr>
         <tr><td><code>site_id</code></td><td>사이트 매물 ID</td></tr>
@@ -50,7 +62,7 @@
         <tr><td><code>car_grade</code></td><td>등급</td></tr>
         <tr><td><code>car_subgrade</code></td><td>세부등급</td></tr>
         <tr><td><code>maker_no</code></td><td>엔카 제조사 코드</td></tr>
-        <tr><td><code>model_no</code></td><td>엔카 차량(모델) 코드</td></tr>
+        <tr><td><code>model_no</code></td><td>엔카 차량 코드</td></tr>
         <tr><td><code>mdetail_no</code></td><td>엔카 세부모델 코드</td></tr>
         <tr><td><code>grade_no</code></td><td>엔카 등급 코드</td></tr>
         <tr><td><code>gdetail_no</code></td><td>엔카 세부등급 코드</td></tr>
@@ -58,11 +70,11 @@
         <tr><td><code>car_mission</code></td><td>변속기</td></tr>
         <tr><td><code>car_color</code></td><td>색상</td></tr>
         <tr><td><code>car_location</code></td><td>지역</td></tr>
-        <tr><td><code>detail_info</code></td><td>상세정보</td></tr>
-        <tr><td><code>option_info</code></td><td>옵션정보</td></tr>
-        <tr><td><code>diag_info</code></td><td>진단정보</td></tr>
+        <tr><td><code>detail_info</code></td><td>상세정보 (상세 API 또는 include=text)</td></tr>
+        <tr><td><code>option_info</code></td><td>옵션정보 (상세 API 또는 include=text)</td></tr>
+        <tr><td><code>diag_info</code></td><td>진단정보 (상세 API 또는 include=text)</td></tr>
         <tr><td><code>url_link</code></td><td>원문 링크</td></tr>
-        <tr><td><code>created_at</code></td><td>CSV 저장일자(<code>created_at</code> → DB <code>scraped_at</code>)</td></tr>
+        <tr><td><code>created_at</code></td><td>CSV 저장일자 (ISO-8601)</td></tr>
         <tr><td><code>car_cc</code></td><td>배기량</td></tr>
         <tr><td><code>car_type</code></td><td>차종</td></tr>
         <tr><td><code>car_seat</code></td><td>승차인원</td></tr>
@@ -71,23 +83,47 @@
     </table>
   </div>
 
-  <h2 class="h4 mt-4">4. 엔드포인트</h2>
+  <h2 class="h4 mt-4">5. 엔드포인트</h2>
 
-  <h3 class="h5">4.1 목록</h3>
-  <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles
-Query: page, per_page(max {{ config.API_PER_PAGE_MAX }}), include=text(상세텍스트), maker_no, model_no, mdetail_no, grade_no, gdetail_no, maker, model, site_type, year, price_min, price_max, created_at_from, created_at_to</code></pre>
+  <h3 class="h5">5.1 목록</h3>
+  <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles</code></pre>
+  <p class="small mb-1">Query: <code>page</code>, <code>per_page</code>, <code>include=text</code>, <code>maker_no</code>, <code>model_no</code>, <code>mdetail_no</code>, <code>grade_no</code>, <code>gdetail_no</code>, <code>maker</code>, <code>model</code>, <code>site_type</code>, <code>year</code>, <code>price_min</code>, <code>price_max</code>, <code>created_at_from</code>, <code>created_at_to</code></p>
+  <pre class="bg-light p-3 rounded"><code>{
+  "price_unit": "만원",
+  "page": 1,
+  "per_page": 20,
+  "total": 204027,
+  "fields": ["id", "db_id", "...", "url_link"],
+  "items": [ { "db_id": 1, "car_maker": "현대", "url_link": "https://..." } ]
+}</code></pre>
   <pre class="bg-light p-3 rounded"><code>curl -H "X-API-Key: YOUR_KEY" \
-  "{{ request.host_url.rstrip('/') }}/api/v1/vehicles?page=1&amp;per_page=20&amp;created_at_from=2026-08-01&amp;created_at_to=2026-08-13"</code></pre>
+  "{{ request.host_url.rstrip('/') }}/api/v1/vehicles?page=1&amp;per_page=20"</code></pre>
 
-  <h3 class="h5 mt-3">4.2 검색</h3>
+  <h3 class="h5 mt-3">5.2 검색</h3>
   <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles/search?q=아반떼</code></pre>
+  <p class="small">번호·제조사·모델 부분일치, 최대 50건.</p>
 
-  <h3 class="h5 mt-3">4.3 상세</h3>
+  <h3 class="h5 mt-3">5.3 상세</h3>
   <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles/{db_id}</code></pre>
-  <p class="small text-muted">경로의 <code>db_id</code>는 응답의 <code>db_id</code> 값입니다.</p>
+  <p class="small text-muted">경로의 <code>db_id</code>는 목록 응답의 <code>db_id</code>입니다. 상세 텍스트 필드를 포함합니다.</p>
 
-  <h2 class="h4 mt-4">5. 업로드 CSV 필수 컬럼</h2>
-  <p class="small mb-2">아래 컬럼이 반영됩니다. <code>site_type</code>+<code>site_id</code> 기준 upsert, 렌트카(하/허/호)·가격 ≤0 또는 ≥9999는 제외.</p>
+  <h2 class="h4 mt-4">6. 연동 예제</h2>
+  <pre class="bg-light p-3 rounded"><code>import requests
+r = requests.get(
+    "{{ request.host_url.rstrip('/') }}/api/v1/vehicles",
+    headers={"X-API-Key": "YOUR_KEY"},
+    params={"page": 1, "per_page": 20},
+    timeout=30,
+)
+r.raise_for_status()
+print(r.json()["items"])</code></pre>
+  <pre class="bg-light p-3 rounded"><code>const res = await fetch("{{ request.host_url.rstrip('/') }}/api/v1/vehicles?page=1&amp;per_page=20", {
+  headers: { "X-API-Key": "YOUR_KEY" },
+});
+const data = await res.json();</code></pre>
+
+  <h2 class="h4 mt-4">7. 업로드 CSV 컬럼</h2>
+  <p class="small mb-2"><code>site_type</code>+<code>site_id</code> 기준 upsert. 렌트(하/허/호)·가격 ≤0 또는 ≥9999는 제외. 대용량은 Docker <code>flask import-csv</code>.</p>
   <pre class="bg-light p-3 rounded"><code>id, car_import_yn, site_type, site_id, car_no, car_year, car_km, car_price,
 car_maker, car_model, car_submodel, car_grade, car_subgrade, car_fuel,
 car_mission, car_color, car_location, detail_info, option_info, diag_info,

@@ -1,9 +1,9 @@
 <!--
   [UI Flow]
   1. Auth required
-  2. Data: GET/POST /api-keys
-  3. States: list | one-time plaintext
-  4. Actions → revoke
+  2. Data: GET/POST /api-keys · GET /api-keys/:id/reveal
+  3. States: list | dialog key | missing secret
+  4. Actions → reveal / copy / revoke
 -->
 {% extends "base.html" %}
 {% block title %}API 키 · Vehicle Hub{% endblock %}
@@ -12,15 +12,16 @@
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
   <div>
     <h1 class="page-title">API 키</h1>
-    <p class="page-subtitle mb-0">타 프로그램은 헤더 <code>X-API-Key</code>로 조회 API를 호출합니다.</p>
+    <p class="page-subtitle mb-0">키 <strong>이름</strong>을 클릭하면 팝업에서 전체 키를 보고 복사할 수 있습니다. 타 프로그램은 <code>X-API-Key</code> 또는 <code>Authorization: Bearer</code>로 호출합니다.</p>
   </div>
   <a class="btn btn-outline-primary" href="{{ url_for('admin.api_docs') }}">API 명세서</a>
 </div>
 
 {% if plaintext %}
 <div class="alert alert-warning glass-card">
-  <strong>지금만 보이는 키:</strong>
-  <code class="user-select-all">{{ plaintext }}</code>
+  <strong>방금 발급한 키:</strong>
+  <code class="user-select-all" id="just-issued-key">{{ plaintext }}</code>
+  <button type="button" class="btn btn-sm btn-outline-primary ms-2" id="copy-just-issued">복사</button>
 </div>
 {% endif %}
 
@@ -44,7 +45,9 @@
       <tbody>
       {% for k in keys %}
         <tr>
-          <td>{{ k.name }}</td>
+          <td>
+            <button type="button" class="btn btn-link p-0 key-title" data-key-id="{{ k.id }}">{{ k.name }}</button>
+          </td>
           <td><code>{{ k.key_prefix }}…</code></td>
           <td>{{ "활성" if k.is_active else "비활성" }}</td>
           <td>{{ k.last_used_at or "-" }}</td>
@@ -64,4 +67,77 @@
     </table>
   </div>
 </div>
+{% endblock %}
+
+{% block body_end %}
+<dialog id="apiKeyDialog" class="reset-dialog" aria-labelledby="apiKeyDialogLabel">
+  <div class="reset-dialog-form">
+    <header class="reset-dialog-header">
+      <h2 class="h5 mb-0" id="apiKeyDialogLabel">API 키</h2>
+      <button type="button" class="btn-close" id="closeApiKeyDialog" aria-label="닫기"></button>
+    </header>
+    <div class="reset-dialog-body">
+      <p class="small text-muted mb-2" id="apiKeyDialogName"></p>
+      <p class="mb-2" id="apiKeyDialogMsg" hidden></p>
+      <code class="user-select-all d-block p-2 bg-light rounded" id="apiKeyDialogValue" hidden></code>
+    </div>
+    <footer class="reset-dialog-footer">
+      <button type="button" class="btn btn-outline-secondary" id="cancelApiKeyDialog">닫기</button>
+      <button type="button" class="btn btn-primary" id="copyApiKeyDialog" hidden>복사</button>
+    </footer>
+  </div>
+</dialog>
+<script>
+(() => {
+  const dialog = document.getElementById("apiKeyDialog");
+  const nameEl = document.getElementById("apiKeyDialogName");
+  const msgEl = document.getElementById("apiKeyDialogMsg");
+  const valEl = document.getElementById("apiKeyDialogValue");
+  const copyBtn = document.getElementById("copyApiKeyDialog");
+  const close = () => dialog?.close();
+  document.getElementById("closeApiKeyDialog")?.addEventListener("click", close);
+  document.getElementById("cancelApiKeyDialog")?.addEventListener("click", close);
+  dialog?.addEventListener("click", (e) => { if (e.target === dialog) close(); });
+
+  const copyText = async (text) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+  };
+
+  document.getElementById("copy-just-issued")?.addEventListener("click", () => {
+    copyText(document.getElementById("just-issued-key")?.textContent || "");
+  });
+  copyBtn?.addEventListener("click", () => copyText(valEl?.textContent || ""));
+
+  document.querySelectorAll(".key-title").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-key-id");
+      nameEl.textContent = btn.textContent || "";
+      msgEl.hidden = true;
+      valEl.hidden = true;
+      copyBtn.hidden = true;
+      dialog.showModal();
+      const res = await fetch(`/api-keys/${id}/reveal`, { credentials: "same-origin" });
+      const body = await res.json();
+      if (body.ok && body.key) {
+        valEl.textContent = body.key;
+        valEl.hidden = false;
+        copyBtn.hidden = false;
+      } else {
+        msgEl.textContent = body.message || "키를 표시할 수 없습니다.";
+        msgEl.hidden = false;
+      }
+    });
+  });
+})();
+</script>
 {% endblock %}

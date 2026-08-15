@@ -16,6 +16,22 @@ def test_db_stats_requires_login(client):
     assert client.get("/db-stats").status_code in (302, 401)
 
 
+def test_api_key_title_reveal_and_copy_payload(client, app):
+    with app.app_context():
+        seed_admin_user()
+        row, raw = create_api_key("popup-key")
+        kid = row.id
+    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    page = client.get("/api-keys")
+    assert page.status_code == 200
+    assert b"key-title" in page.data
+    rev = client.get(f"/api-keys/{kid}/reveal")
+    assert rev.status_code == 200
+    body = rev.get_json()
+    assert body["ok"] is True
+    assert body["key"] == raw
+
+
 def test_login_and_upload(client, app):
     with app.app_context():
         seed_admin_user()
@@ -146,6 +162,9 @@ def test_api_list_and_detail(client, app):
         db.session.commit()
         vid = v.id
     r = client.get("/api/v1/vehicles", headers={"X-API-Key": raw})
+    assert r.status_code == 200
+    assert r.headers.get("Access-Control-Allow-Origin") == "*"
+    r = client.get("/api/v1/vehicles", headers={"Authorization": f"Bearer {raw}"})
     assert r.status_code == 200
     body = r.get_json()
     assert body.get("price_unit") == "만원"

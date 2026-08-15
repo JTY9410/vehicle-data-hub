@@ -28,7 +28,7 @@ from apps.models import (
     VehicleModel,
     VehicleModelDetail,
 )
-from apps.services.api_keys import create_api_key, revoke_api_key
+from apps.services.api_keys import create_api_key, reveal_api_key, revoke_api_key
 from apps.services.db_stats import count_stmt_ids, estimate_row_count, hot_queries
 from apps.services.import_csv import import_csv_file, parse_date_bound
 
@@ -427,11 +427,27 @@ def api_keys():
             flash("키 이름을 입력하세요.", "warning")
         else:
             _row, plaintext = create_api_key(name)
-            flash("API 키가 발급되었습니다. 지금만 평문이 표시됩니다.", "success")
+            flash("API 키가 발급되었습니다. 이름을 클릭하면 다시 보고 복사할 수 있습니다.", "success")
     keys = db.session.execute(
         db.select(ApiKey).order_by(ApiKey.id.desc())
     ).scalars().all()
     return render_template("api_keys.html", keys=keys, plaintext=plaintext)
+
+
+@bp.get("/api-keys/<int:key_id>/reveal")
+@login_required
+def api_keys_reveal(key_id: int):
+    row = db.session.get(ApiKey, key_id)
+    if row is None:
+        return jsonify(ok=False, message="키를 찾을 수 없습니다."), 404
+    raw = reveal_api_key(key_id)
+    if not raw:
+        return jsonify(
+            ok=False,
+            name=row.name,
+            message="이 키는 발급 당시 원문을 저장하지 않았습니다. 새로 발급하세요.",
+        ), 404
+    return jsonify(ok=True, name=row.name, key=raw)
 
 
 @bp.get("/api-keys/docs")

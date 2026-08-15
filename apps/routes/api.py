@@ -5,7 +5,7 @@ from sqlalchemy.orm import load_only
 
 from apps.extensions import db
 from apps.models import Vehicle
-from apps.services.api_keys import verify_api_key
+from apps.services.api_keys import request_header_api_key, verify_api_key
 from apps.services.db_stats import count_stmt_ids, estimate_row_count
 from apps.services.import_csv import parse_date_bound
 
@@ -46,13 +46,27 @@ VEHICLE_FIELDS = (
 )
 
 
+@bp.before_request
+def _cors_preflight():
+    if request.method == "OPTIONS":
+        return "", 204
+
+
+@bp.after_request
+def _cors_headers(resp):
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "X-API-Key, Authorization, Content-Type"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    return resp
+
+
 def require_api_key(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        raw = request.headers.get("X-API-Key", "")
+        raw = request_header_api_key()
         key = verify_api_key(raw)
         if key is None:
-            return jsonify(error="unauthorized"), 401
+            return jsonify(error="unauthorized", message="X-API-Key 또는 Authorization: Bearer 가 필요합니다."), 401
         return view(*args, **kwargs)
 
     return wrapped
