@@ -47,6 +47,12 @@
         </span>
         <span class="side-rail-label">업로드</span>
       </a>
+      <a href="{{ url_for('admin.db_stats') }}" class="side-rail-item {% if ep == 'admin.db_stats' %}active{% endif %}" title="DB 비용">
+        <span class="side-rail-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16l3-5 3 3 4-7"/></svg>
+        </span>
+        <span class="side-rail-label">DB</span>
+      </a>
       <a href="{{ url_for('admin.api_keys') }}" class="side-rail-item {% if ep and 'api_keys' in ep %}active{% endif %}" title="API 키">
         <span class="side-rail-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="12" r="3"/><path d="M11 12h9"/><path d="M17 12v2"/><path d="M20 12v3"/></svg>

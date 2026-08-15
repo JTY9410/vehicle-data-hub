@@ -12,6 +12,10 @@ def test_dashboard_requires_login(client):
     assert client.get("/").status_code in (302, 401)
 
 
+def test_db_stats_requires_login(client):
+    assert client.get("/db-stats").status_code in (302, 401)
+
+
 def test_login_and_upload(client, app):
     with app.app_context():
         seed_admin_user()
@@ -146,6 +150,9 @@ def test_api_list_and_detail(client, app):
     body = r.get_json()
     assert body.get("price_unit") == "만원"
     assert "items" in body
+    assert body["items"]
+    assert "detail_info" not in body["items"][0]
+    assert "url_link" in body["items"][0]
     r = client.get(f"/api/v1/vehicles/{vid}", headers={"X-API-Key": raw})
     assert r.status_code == 200
     body = r.get_json()

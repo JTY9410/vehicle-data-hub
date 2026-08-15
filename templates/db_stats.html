@@ -1,0 +1,44 @@
+<!--
+  [UI Flow]
+  1. Auth required
+  2. Data: GET /db-stats → pg_stat_statements
+  3. States: empty | table
+-->
+{% extends "base.html" %}
+{% block title %}DB 비용 · Vehicle Hub{% endblock %}
+{% block content %}
+<p class="section-kicker mb-1">DATABASE</p>
+<h1 class="page-title">비용이 큰 쿼리</h1>
+<p class="page-subtitle">Supabase <code>pg_stat_statements</code> 총 실행시간 상위입니다. 목록 API는 이제 <code>count(id)</code>와 추정 건수를 씁니다.</p>
+
+<div class="glass-card p-0">
+  {% if not queries %}
+  <p class="text-muted p-4 mb-0">통계를 읽을 수 없습니다. pg_stat_statements 확장을 확인하세요.</p>
+  {% else %}
+  <div class="wc-table-wrap">
+    <table class="wc-table">
+      <thead>
+        <tr>
+          <th>총 ms</th>
+          <th>평균 ms</th>
+          <th>호출</th>
+          <th>%</th>
+          <th>쿼리</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for q in queries %}
+        <tr>
+          <td>{{ "{:,}".format(q.total_ms) }}</td>
+          <td>{{ q.mean_ms }}</td>
+          <td>{{ "{:,}".format(q.calls) }}</td>
+          <td>{{ q.pct }}</td>
+          <td class="small"><code>{{ q.query }}</code></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

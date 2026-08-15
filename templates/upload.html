@@ -11,20 +11,30 @@
 <p class="section-kicker mb-1">IMPORT</p>
 <h1 class="page-title">CSV 업로드</h1>
 <p class="page-subtitle">렌트카(하/허/호)·비정상 가격(≤0 또는 ≥9999)은 저장되지 않습니다. 가격 단위: 만원. CSV <code>created_at</code>은 저장일자로 DB에 보관됩니다.</p>
+{% if on_vercel %}
+<div class="alert alert-warning">Vercel 요청 한도는 4.5MB입니다. 대용량 CSV는 로컬 Docker에서 <code>flask import-csv</code>로 적재하세요.</div>
+{% endif %}
 <div class="glass-card p-3 mb-4 small">
   <strong>반영 컬럼:</strong>
   <code>id, car_import_yn, site_type, site_id, car_no, car_year, car_km, car_price, car_maker, car_model, car_submodel, car_grade, car_subgrade, car_fuel, car_mission, car_color, car_location, detail_info, option_info, diag_info, url_link, created_at, car_cc, car_type, car_seat</code>
 </div>
 
 <div class="glass-card p-4">
-  <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.upload') }}">
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.upload') }}" id="csv-upload-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="mb-3">
       <label class="form-label small fw-semibold" for="file">CSV 파일</label>
       <input class="form-control" type="file" id="file" name="file" accept=".csv" required>
     </div>
-    <button class="btn btn-primary" type="submit">업로드 및 적재</button>
+    <button class="btn btn-primary" type="submit"{% if on_vercel %} disabled{% endif %}>업로드 및 적재</button>
   </form>
+  {% if on_vercel %}
+  <script>
+  document.getElementById("csv-upload-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+  });
+  </script>
+  {% endif %}
 </div>
 
 {% if job %}

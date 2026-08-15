@@ -1,10 +1,12 @@
 from functools import wraps
 
 from flask import Blueprint, current_app, jsonify, request
+from sqlalchemy.orm import load_only
 
 from apps.extensions import db
 from apps.models import Vehicle
 from apps.services.api_keys import verify_api_key
+from apps.services.db_stats import count_stmt_ids, estimate_row_count
 from apps.services.import_csv import parse_date_bound
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -56,9 +58,42 @@ def require_api_key(view):
     return wrapped
 
 
-def _vehicle_public(v: Vehicle) -> dict:
+_TEXT_FIELDS = ("detail_info", "option_info", "diag_info")
+_LIST_LOAD = load_only(
+    Vehicle.id,
+    Vehicle.source_id,
+    Vehicle.site_type,
+    Vehicle.site_id,
+    Vehicle.car_no,
+    Vehicle.car_year,
+    Vehicle.car_km,
+    Vehicle.car_price,
+    Vehicle.car_maker,
+    Vehicle.car_model,
+    Vehicle.car_submodel,
+    Vehicle.car_grade,
+    Vehicle.car_subgrade,
+    Vehicle.maker_no,
+    Vehicle.model_no,
+    Vehicle.mdetail_no,
+    Vehicle.grade_no,
+    Vehicle.gdetail_no,
+    Vehicle.car_fuel,
+    Vehicle.car_mission,
+    Vehicle.car_color,
+    Vehicle.car_location,
+    Vehicle.car_import_yn,
+    Vehicle.car_cc,
+    Vehicle.car_type,
+    Vehicle.car_seat,
+    Vehicle.url_link,
+    Vehicle.scraped_at,
+)
+
+
+def _vehicle_public(v: Vehicle, *, include_text: bool = True) -> dict:
     """CSV 스키마와 동일한 키로 응답. id=원본 CSV id, created_at=CSV 저장일자(scraped_at)."""
-    return {
+    payload = {
         "id": v.source_id if v.source_id is not None else str(v.id),
         "db_id": v.id,
         "car_import_yn": v.car_import_yn,
@@ -82,9 +117,6 @@ def _vehicle_public(v: Vehicle) -> dict:
         "car_mission": v.car_mission,
         "car_color": v.car_color,
         "car_location": v.car_location,
-        "detail_info": v.detail_info,
-        "option_info": v.option_info,
-        "diag_info": v.diag_info,
         "url_link": v.url_link,
         "created_at": v.scraped_at.isoformat() if v.scraped_at else None,
         "car_cc": v.car_cc,
@@ -92,6 +124,11 @@ def _vehicle_public(v: Vehicle) -> dict:
         "car_seat": v.car_seat,
         "price_unit": "만원",
     }
+    if include_text:
+        payload["detail_info"] = v.detail_info
+        payload["option_info"] = v.option_info
+        payload["diag_info"] = v.diag_info
+    return payload
 
 
 @bp.get("/vehicles")
@@ -146,19 +183,40 @@ def list_vehicles():
     if to_dt is not None:
         stmt = stmt.filter(Vehicle.scraped_at <= to_dt)
 
-    total = db.session.execute(
-        db.select(db.func.count()).select_from(stmt.subquery())
-    ).scalar_one()
+    filtered = bool(
+        maker_no
+        or model_no
+        or mdetail_no
+        or grade_no
+        or gdetail_no
+        or maker
+        or model
+        or site_type
+        or year
+        or price_min is not None
+        or price_max is not None
+        or from_dt
+        or to_dt
+    )
+    include_text = (request.args.get("include") or "").strip() == "text"
+    if filtered:
+        total = count_stmt_ids(stmt, Vehicle.id)
+    else:
+        total = estimate_row_count("vehicles")
+    list_stmt = stmt if include_text else stmt.options(_LIST_LOAD)
     rows = db.session.execute(
-        stmt.order_by(Vehicle.id.desc()).offset((page - 1) * per_page).limit(per_page)
+        list_stmt.order_by(Vehicle.id.desc()).offset((page - 1) * per_page).limit(per_page)
     ).scalars().all()
+    fields = list(VEHICLE_FIELDS) if include_text else [
+        f for f in VEHICLE_FIELDS if f not in _TEXT_FIELDS
+    ]
     return jsonify(
         price_unit="만원",
         page=page,
         per_page=per_page,
         total=total,
-        fields=list(VEHICLE_FIELDS),
-        items=[_vehicle_public(v) for v in rows],
+        fields=fields,
+        items=[_vehicle_public(v, include_text=include_text) for v in rows],
     )
 
 
@@ -180,11 +238,17 @@ def search_vehicles():
         .order_by(Vehicle.id.desc())
         .limit(50)
     )
+    include_text = (request.args.get("include") or "").strip() == "text"
+    if not include_text:
+        stmt = stmt.options(_LIST_LOAD)
     rows = db.session.execute(stmt).scalars().all()
+    fields = list(VEHICLE_FIELDS) if include_text else [
+        f for f in VEHICLE_FIELDS if f not in _TEXT_FIELDS
+    ]
     return jsonify(
         price_unit="만원",
-        fields=list(VEHICLE_FIELDS),
-        items=[_vehicle_public(v) for v in rows],
+        fields=fields,
+        items=[_vehicle_public(v, include_text=include_text) for v in rows],
     )
 
 

@@ -29,6 +29,7 @@ from apps.models import (
     VehicleModelDetail,
 )
 from apps.services.api_keys import create_api_key, revoke_api_key
+from apps.services.db_stats import count_stmt_ids, estimate_row_count, hot_queries
 from apps.services.import_csv import import_csv_file, parse_date_bound
 
 bp = Blueprint("admin", __name__)
@@ -107,29 +108,7 @@ def _valid_text(column):
 
 
 def _estimate_vehicle_count() -> int:
-    """전체 건수 추정. exact count(*)는 타임아웃 날 수 있어 짧게만 시도한다."""
-    try:
-        est = db.session.execute(
-            db.text(
-                "SELECT reltuples::bigint "
-                "FROM pg_class WHERE oid = 'public.vehicles'::regclass"
-            )
-        ).scalar()
-        if est is not None and int(est) > 0:
-            return int(est)
-    except Exception:  # noqa: BLE001
-        db.session.rollback()
-    try:
-        db.session.execute(db.text("SET LOCAL statement_timeout = '2500'"))
-        return int(
-            db.session.execute(
-                db.select(db.func.count()).select_from(Vehicle)
-            ).scalar_one()
-            or 0
-        )
-    except Exception:  # noqa: BLE001
-        db.session.rollback()
-        return 0
+    return estimate_row_count("vehicles")
 
 
 _LIST_LOAD = load_only(
@@ -169,9 +148,9 @@ def vehicles():
     per_page = request.args.get("per_page", 100, type=int) or 100
     if per_page not in (50, 100, 200, 500):
         per_page = 100
-    # Vercel 서버리스: 큰 페이지는 HTML 생성·전송에서 타임아웃 위험
-    if os.environ.get("VERCEL") and per_page > 100:
-        per_page = 100
+    # Vercel 서버리스: 큰 페이지는 HTML/JSON이 4.5MB를 넘기면 413
+    if os.environ.get("VERCEL") and per_page > 50:
+        per_page = 50
 
     saved_from_dt = parse_date_bound(saved_from, end_of_day=False)
     saved_to_dt = parse_date_bound(saved_to, end_of_day=True)
@@ -255,11 +234,7 @@ def vehicles():
 
     if filtered:
         try:
-            total = db.session.execute(
-                db.select(db.func.count()).select_from(
-                    stmt.order_by(None).with_only_columns(Vehicle.id).subquery()
-                )
-            ).scalar_one()
+            total = count_stmt_ids(stmt, Vehicle.id)
         except Exception:  # noqa: BLE001
             db.session.rollback()
             try:
@@ -307,6 +282,12 @@ def vehicles():
         total_all=total_all,
         per_page=per_page,
     )
+
+
+@bp.get("/db-stats")
+@login_required
+def db_stats():
+    return render_template("db_stats.html", queries=hot_queries())
 
 
 @bp.get("/api/codes/makers")
@@ -381,7 +362,15 @@ def code_gdetails():
 @login_required
 def upload():
     job = None
+    on_vercel = bool(os.environ.get("VERCEL"))
     if request.method == "POST":
+        if on_vercel:
+            flash(
+                "Vercel은 요청 4.5MB 제한이 있어 대용량 CSV를 올릴 수 없습니다. "
+                "로컬 Docker에서 flask import-csv 로 적재하세요.",
+                "warning",
+            )
+            return redirect(url_for("admin.upload"))
         file = request.files.get("file")
         if not file or not file.filename:
             flash("CSV 파일을 선택하세요.", "warning")
@@ -398,7 +387,7 @@ def upload():
             "success",
         )
         return redirect(url_for("admin.upload_status", job_id=job.id))
-    return render_template("upload.html", job=job)
+    return render_template("upload.html", job=job, on_vercel=on_vercel)
 
 
 @bp.get("/upload/<int:job_id>")

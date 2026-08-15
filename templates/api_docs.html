@@ -75,7 +75,7 @@
 
   <h3 class="h5">4.1 목록</h3>
   <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles
-Query: page, per_page(max {{ config.API_PER_PAGE_MAX }}), maker_no, model_no, mdetail_no, grade_no, gdetail_no, maker, model, site_type, year, price_min, price_max, created_at_from, created_at_to</code></pre>
+Query: page, per_page(max {{ config.API_PER_PAGE_MAX }}), include=text(상세텍스트), maker_no, model_no, mdetail_no, grade_no, gdetail_no, maker, model, site_type, year, price_min, price_max, created_at_from, created_at_to</code></pre>
   <pre class="bg-light p-3 rounded"><code>curl -H "X-API-Key: YOUR_KEY" \
   "{{ request.host_url.rstrip('/') }}/api/v1/vehicles?page=1&amp;per_page=20&amp;created_at_from=2026-08-01&amp;created_at_to=2026-08-13"</code></pre>
 

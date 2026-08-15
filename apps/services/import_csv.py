@@ -4,7 +4,7 @@ import csv
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 
-from sqlalchemy import tuple_
+from sqlalchemy import text, tuple_
 
 from apps.extensions import db
 from apps.models import ImportJob, Vehicle, utcnow
@@ -165,6 +165,12 @@ def import_csv_file(path: str | Path, source: str, filename: str | None = None) 
     db.session.commit()
 
     try:
+        # Supabase 기본 statement_timeout 회피 (SQLite 테스트에서는 무시)
+        try:
+            db.session.execute(text("SET statement_timeout = 0"))
+            db.session.commit()
+        except Exception:  # noqa: BLE001
+            db.session.rollback()
         with path.open("r", encoding="utf-8-sig", newline="") as fh:
             reader = csv.DictReader(fh)
             pending: list[dict] = []
