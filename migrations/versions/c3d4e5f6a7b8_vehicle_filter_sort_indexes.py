@@ -14,23 +14,10 @@ depends_on = None
 
 
 def upgrade():
-    op.create_index(
-        "ix_vehicles_maker_no_id",
-        "vehicles",
-        ["maker_no", "id"],
-        unique=False,
-    )
-    op.create_index(
-        "ix_vehicles_model_no_id",
-        "vehicles",
-        ["model_no", "id"],
-        unique=False,
-    )
-    op.create_index(
-        "ix_vehicles_scraped_at_id",
-        "vehicles",
-        ["scraped_at", "id"],
-        unique=False,
+    op.execute("CREATE INDEX IF NOT EXISTS ix_vehicles_maker_no_id ON vehicles (maker_no, id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_vehicles_model_no_id ON vehicles (model_no, id)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_vehicles_scraped_at_id ON vehicles (scraped_at, id)"
     )
 
 
