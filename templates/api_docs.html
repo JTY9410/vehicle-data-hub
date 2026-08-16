@@ -38,7 +38,7 @@ Authorization: Bearer &lt;발급받은_API_키&gt;</code></pre>
     <li>응답 JSON, 문자셋 UTF-8.</li>
     <li>가격 단위는 항상 <strong>만원</strong> (<code>price_unit: "만원"</code>).</li>
     <li>목록 기본 응답에는 <code>detail_info</code>, <code>option_info</code>, <code>diag_info</code>가 없습니다. 상세 텍스트가 필요하면 <code>include=text</code> 또는 상세 API를 쓰세요 (Vercel 4.5MB 제한).</li>
-    <li>페이지 기본 <code>per_page=20</code>, 최대 <code>{{ config.API_PER_PAGE_MAX }}</code>.</li>
+    <li>페이지 기본 <code>per_page=20</code>, 최대 <code>{{ config.API_PER_PAGE_MAX }}</code> (린 목록). <code>include=text</code>일 때 최대 <code>{{ config.API_PER_PAGE_MAX_WITH_TEXT }}</code>.</li>
     <li>없는 상세 id는 <code>404</code> <code>{"error":"not_found"}</code>.</li>
   </ul>
 

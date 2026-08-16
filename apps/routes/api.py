@@ -149,10 +149,13 @@ def _vehicle_public(v: Vehicle, *, include_text: bool = True) -> dict:
 @require_api_key
 def list_vehicles():
     page = max(int(request.args.get("page", 1)), 1)
-    per_page = min(
-        max(int(request.args.get("per_page", 20)), 1),
-        current_app.config["API_PER_PAGE_MAX"],
+    include_text = (request.args.get("include") or "").strip() == "text"
+    page_cap = (
+        current_app.config.get("API_PER_PAGE_MAX_WITH_TEXT", 20)
+        if include_text
+        else current_app.config["API_PER_PAGE_MAX"]
     )
+    per_page = min(max(int(request.args.get("per_page", 20)), 1), int(page_cap))
     stmt = db.select(Vehicle)
     maker = request.args.get("maker")
     model = request.args.get("model")
@@ -212,7 +215,6 @@ def list_vehicles():
         or from_dt
         or to_dt
     )
-    include_text = (request.args.get("include") or "").strip() == "text"
     if filtered:
         total = count_stmt_ids(stmt, Vehicle.id)
     else:
