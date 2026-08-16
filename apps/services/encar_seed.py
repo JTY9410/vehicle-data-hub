@@ -19,6 +19,14 @@ SEED_DIR = Path(__file__).resolve().parents[2] / "data" / "encar_codes"
 BATCH = 500
 
 
+def _disable_statement_timeout() -> None:
+    try:
+        db.session.execute(text("SET statement_timeout = 0"))
+        db.session.commit()
+    except Exception:  # noqa: BLE001
+        db.session.rollback()
+
+
 def _int_or_none(raw: str | None) -> int | None:
     if raw is None:
         return None
@@ -55,8 +63,7 @@ def seed_encar_codes(seed_dir: Path | None = None) -> dict[str, int]:
     }
 
     # Supabase pooler 기본 statement_timeout 회피 (대량 upsert)
-    db.session.execute(text("SET statement_timeout = 0"))
-    db.session.commit()
+    _disable_statement_timeout()
 
     batch: list[dict] = []
     with (root / "vehicle_maker.csv").open(encoding="utf-8-sig", newline="") as fh:
@@ -81,7 +88,7 @@ def seed_encar_codes(seed_dir: Path | None = None) -> dict[str, int]:
                     ["maker_name", "sort_no"],
                 )
                 batch = []
-                db.session.execute(text("SET statement_timeout = 0"))
+                _disable_statement_timeout()
     _flush_upsert(VehicleMaker.__table__, batch, "maker_no", ["maker_name", "sort_no"])
     batch = []
 
@@ -108,7 +115,7 @@ def seed_encar_codes(seed_dir: Path | None = None) -> dict[str, int]:
                     ["maker_no", "model_name", "sort_no"],
                 )
                 batch = []
-                db.session.execute(text("SET statement_timeout = 0"))
+                _disable_statement_timeout()
     _flush_upsert(
         VehicleModel.__table__,
         batch,
@@ -142,7 +149,7 @@ def seed_encar_codes(seed_dir: Path | None = None) -> dict[str, int]:
                     ["model_no", "mdetail_name", "sort_no", "st_year", "ed_year"],
                 )
                 batch = []
-                db.session.execute(text("SET statement_timeout = 0"))
+                _disable_statement_timeout()
     _flush_upsert(
         VehicleModelDetail.__table__,
         batch,
@@ -174,7 +181,7 @@ def seed_encar_codes(seed_dir: Path | None = None) -> dict[str, int]:
                     ["mdetail_no", "grade_name", "sort_no"],
                 )
                 batch = []
-                db.session.execute(text("SET statement_timeout = 0"))
+                _disable_statement_timeout()
     _flush_upsert(
         VehicleGrade.__table__,
         batch,
@@ -206,7 +213,7 @@ def seed_encar_codes(seed_dir: Path | None = None) -> dict[str, int]:
                     ["grade_no", "gdetail_name", "sort_no"],
                 )
                 batch = []
-                db.session.execute(text("SET statement_timeout = 0"))
+                _disable_statement_timeout()
     _flush_upsert(
         VehicleGradeDetail.__table__,
         batch,

@@ -102,9 +102,11 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "wecar")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1004wecar")
-    # Vercel 응답 4.5MB: 린 목록은 100, include=text 는 API에서 20으로 clamp
-    API_PER_PAGE_MAX = 100
-    API_PER_PAGE_MAX_WITH_TEXT = 20
+    # 목록 per_page 상한 (include=text 포함). 필요 시 API_PER_PAGE_MAX 환경변수로 덮어씀
+    API_PER_PAGE_MAX = int(os.environ.get("API_PER_PAGE_MAX", "100"))
+    API_PER_PAGE_MAX_WITH_TEXT = int(
+        os.environ.get("API_PER_PAGE_MAX_WITH_TEXT", str(API_PER_PAGE_MAX))
+    )
 
     # CSRF / session (Vercel 서버리스에서 만료·Referer 누락 방지)
     WTF_CSRF_TIME_LIMIT = None

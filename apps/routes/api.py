@@ -151,7 +151,7 @@ def list_vehicles():
     page = max(int(request.args.get("page", 1)), 1)
     include_text = (request.args.get("include") or "").strip() == "text"
     page_cap = (
-        current_app.config.get("API_PER_PAGE_MAX_WITH_TEXT", 20)
+        current_app.config.get("API_PER_PAGE_MAX_WITH_TEXT", 100)
         if include_text
         else current_app.config["API_PER_PAGE_MAX"]
     )
