@@ -151,7 +151,7 @@ def list_vehicles():
     page = max(int(request.args.get("page", 1)), 1)
     include_text = (request.args.get("include") or "").strip() == "text"
     page_cap = (
-        current_app.config.get("API_PER_PAGE_MAX_WITH_TEXT", 100)
+        current_app.config.get("API_PER_PAGE_MAX_WITH_TEXT", 20)
         if include_text
         else current_app.config["API_PER_PAGE_MAX"]
     )
@@ -170,6 +170,7 @@ def list_vehicles():
     price_max = request.args.get("price_max", type=int)
     created_at_from = (request.args.get("created_at_from") or "").strip()
     created_at_to = (request.args.get("created_at_to") or "").strip()
+    fuel = (request.args.get("fuel") or request.args.get("car_fuel") or "").strip()
 
     if maker_no:
         stmt = stmt.filter(Vehicle.maker_no == maker_no)
@@ -199,6 +200,8 @@ def list_vehicles():
         stmt = stmt.filter(Vehicle.scraped_at >= from_dt)
     if to_dt is not None:
         stmt = stmt.filter(Vehicle.scraped_at <= to_dt)
+    if fuel:
+        stmt = stmt.filter(Vehicle.car_fuel.contains(fuel))
 
     filtered = bool(
         maker_no
@@ -214,6 +217,7 @@ def list_vehicles():
         or price_max is not None
         or from_dt
         or to_dt
+        or fuel
     )
     if filtered:
         total = count_stmt_ids(stmt, Vehicle.id)
@@ -249,6 +253,7 @@ def search_vehicles():
                 Vehicle.car_no.contains(q),
                 Vehicle.car_model.contains(q),
                 Vehicle.car_maker.contains(q),
+                Vehicle.car_fuel.contains(q),
             )
         )
         .order_by(Vehicle.id.desc())

@@ -87,7 +87,7 @@ Authorization: Bearer &lt;발급받은_API_키&gt;</code></pre>
 
   <h3 class="h5">5.1 목록</h3>
   <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles</code></pre>
-  <p class="small mb-1">Query: <code>page</code>, <code>per_page</code>, <code>include=text</code>, <code>maker_no</code>, <code>model_no</code>, <code>mdetail_no</code>, <code>grade_no</code>, <code>gdetail_no</code>, <code>maker</code>, <code>model</code>, <code>site_type</code>, <code>year</code>, <code>price_min</code>, <code>price_max</code>, <code>created_at_from</code>, <code>created_at_to</code></p>
+  <p class="small mb-1">Query: <code>page</code>, <code>per_page</code>, <code>include=text</code>, <code>maker_no</code>, <code>model_no</code>, <code>mdetail_no</code>, <code>grade_no</code>, <code>gdetail_no</code>, <code>maker</code>, <code>model</code>, <code>fuel</code> (<code>car_fuel</code> 별칭), <code>site_type</code>, <code>year</code>, <code>price_min</code>, <code>price_max</code>, <code>created_at_from</code>, <code>created_at_to</code></p>
   <pre class="bg-light p-3 rounded"><code>{
   "price_unit": "만원",
   "page": 1,
@@ -101,7 +101,7 @@ Authorization: Bearer &lt;발급받은_API_키&gt;</code></pre>
 
   <h3 class="h5 mt-3">5.2 검색</h3>
   <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles/search?q=아반떼</code></pre>
-  <p class="small">번호·제조사·모델 부분일치, 최대 50건.</p>
+  <p class="small">번호·제조사·모델·연료 부분일치, 최대 50건.</p>
 
   <h3 class="h5 mt-3">5.3 상세</h3>
   <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles/{db_id}</code></pre>

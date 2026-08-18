@@ -95,6 +95,85 @@ def test_vehicles_search_by_maker_model_subgrade(client, app):
     assert "시그니처".encode() not in r.data
 
 
+def test_vehicles_shows_fuel_and_filters_by_fuel(client, app):
+    with app.app_context():
+        seed_admin_user()
+        db.session.add(
+            Vehicle(
+                site_type="encar",
+                site_id="fuel-g",
+                car_no="12가1111",
+                car_price=2000,
+                car_maker="현대",
+                car_model="쏘나타",
+                car_fuel="가솔린",
+            )
+        )
+        db.session.add(
+            Vehicle(
+                site_type="encar",
+                site_id="fuel-d",
+                car_no="12가2222",
+                car_price=1800,
+                car_maker="현대",
+                car_model="싼타페",
+                car_fuel="디젤",
+            )
+        )
+        db.session.commit()
+    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    page = client.get("/vehicles")
+    assert page.status_code == 200
+    assert ">연료<".encode() in page.data
+    assert "가솔린".encode() in page.data
+    assert "디젤".encode() in page.data
+    filtered = client.get("/vehicles?fuel=디젤")
+    assert filtered.status_code == 200
+    assert "싼타페".encode() in filtered.data
+    assert "쏘나타".encode() not in filtered.data
+
+
+def test_api_search_and_list_by_fuel(client, app):
+    with app.app_context():
+        seed_admin_user()
+        _, raw = create_api_key("fuel")
+        db.session.add(
+            Vehicle(
+                site_type="encar",
+                site_id="api-fuel-1",
+                car_no="12가3333",
+                car_price=2100,
+                car_maker="기아",
+                car_model="K5",
+                car_fuel="하이브리드",
+            )
+        )
+        db.session.add(
+            Vehicle(
+                site_type="encar",
+                site_id="api-fuel-2",
+                car_no="12가4444",
+                car_price=1900,
+                car_maker="기아",
+                car_model="스포티지",
+                car_fuel="가솔린",
+            )
+        )
+        db.session.commit()
+    headers = {"X-API-Key": raw}
+    listed = client.get("/api/v1/vehicles?fuel=하이브리드", headers=headers)
+    assert listed.status_code == 200
+    items = listed.get_json()["items"]
+    assert len(items) == 1
+    assert items[0]["car_fuel"] == "하이브리드"
+    assert items[0]["car_model"] == "K5"
+    searched = client.get("/api/v1/vehicles/search?q=하이브리드", headers=headers)
+    assert searched.status_code == 200
+    models = {row["car_model"] for row in searched.get_json()["items"]}
+    assert "K5" in models
+    assert "스포티지" not in models
+
+
 def test_api_docs_page(client, app):
     with app.app_context():
         seed_admin_user()

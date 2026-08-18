@@ -123,6 +123,7 @@ _LIST_LOAD = load_only(
     Vehicle.car_submodel,
     Vehicle.car_grade,
     Vehicle.car_subgrade,
+    Vehicle.car_fuel,
     Vehicle.car_year,
     Vehicle.car_price,
     Vehicle.car_no,
@@ -140,6 +141,7 @@ def vehicles():
     gdetail_no = (request.args.get("gdetail_no") or "").strip()
     saved_from = (request.args.get("saved_from") or "").strip()
     saved_to = (request.args.get("saved_to") or "").strip()
+    fuel = (request.args.get("fuel") or "").strip()
     # legacy name filters still accepted
     maker = (request.args.get("maker") or "").strip()
     model = (request.args.get("model") or "").strip()
@@ -165,6 +167,7 @@ def vehicles():
         or subgrade
         or saved_from_dt
         or saved_to_dt
+        or fuel
     )
 
     # 개별 쿼리가 길면 전체 함수가 응답 없이 끊김 → DB 쪽 상한
@@ -231,6 +234,8 @@ def vehicles():
         stmt = stmt.where(Vehicle.scraped_at >= saved_from_dt)
     if saved_to_dt is not None:
         stmt = stmt.where(Vehicle.scraped_at <= saved_to_dt)
+    if fuel:
+        stmt = stmt.where(Vehicle.car_fuel.contains(fuel))
 
     if filtered:
         try:
@@ -276,6 +281,7 @@ def vehicles():
         gdetail_no=gdetail_no,
         saved_from=saved_from,
         saved_to=saved_to,
+        fuel=fuel,
         page=page,
         pages=pages,
         total=total,
