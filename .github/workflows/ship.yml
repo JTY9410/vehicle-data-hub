@@ -38,6 +38,9 @@ jobs:
       - name: Migrate Supabase
         if: env.DATABASE_URL != ''
         run: flask db upgrade
+      - name: Remap existing fuels
+        if: env.DATABASE_URL != ''
+        run: flask remap-fuels
       - name: Skip migrate
         if: env.DATABASE_URL == ''
         run: echo "Set GitHub secret DATABASE_URL to enable migrate"

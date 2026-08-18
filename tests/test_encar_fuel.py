@@ -17,6 +17,10 @@ def test_normalize_fuel_encar_aliases():
     assert normalize_fuel("PHEV") == "하이브리드"
     assert normalize_fuel("전기차") == "전기"
     assert normalize_fuel("수소전기") == "수소"
+    assert normalize_fuel("디젤 2WD 2.0 프리미엄") == "디젤"
+    assert normalize_fuel("HEV 1.6 2WD 시그니처") == "하이브리드"
+    assert normalize_fuel("EV 탑") == "전기"
+    assert normalize_fuel("가솔린 3.5T AWD") == "가솔린"
     assert normalize_fuel("NULL") is None
     assert "가솔린" in ENCAR_FUELS
     assert "수소" in ENCAR_FUELS
@@ -92,3 +96,26 @@ def test_remap_vehicle_fuels(app):
             db.select(Vehicle).filter_by(site_id="fuel-old")
         ).scalar_one()
         assert row.car_fuel == "가솔린"
+
+
+def test_remap_fills_null_fuel_from_encar_grade(app):
+    from apps.services.encar_fuel import remap_vehicle_fuels
+
+    with app.app_context():
+        db.session.add(
+            Vehicle(
+                site_type="encar",
+                site_id="fuel-null-grade",
+                car_no="12가8888",
+                car_price=2500,
+                car_fuel=None,
+                car_grade="디젤 9인승 프레스티지",
+            )
+        )
+        db.session.commit()
+        result = remap_vehicle_fuels()
+        assert result["updated"] >= 1
+        row = db.session.execute(
+            db.select(Vehicle).filter_by(site_id="fuel-null-grade")
+        ).scalar_one()
+        assert row.car_fuel == "디젤"

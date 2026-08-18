@@ -45,6 +45,7 @@ _ALIASES = {
     "전기차": "전기",
     "ev": "전기",
     "electric": "전기",
+    "cng": "CNG",
     "수소": "수소",
     "수소전기": "수소",
     "수소차": "수소",
@@ -81,8 +82,14 @@ def normalize_fuel(raw: str | None) -> str | None:
         return "하이브리드"
     if "전기" in text and ("+" in text or "＋" in text):
         return "하이브리드"
-    if text in {"전기", "전기차"} or _key(text) in {"전기", "전기차", "ev", "electric"}:
+    if (
+        text in {"전기", "전기차"}
+        or _key(text) in {"전기", "전기차", "ev", "electric"}
+        or re.search(r"(?i)(?<![a-z0-9])ev(?![a-z0-9])", text)
+    ):
         return "전기"
+    if "cng" in folded or text == "CNG":
+        return "CNG"
     if "디젤" in text or "경유" in text or "diesel" in folded:
         return "디젤"
     if "lpg" in folded or "lpi" in folded or "엘피지" in text:
@@ -92,9 +99,20 @@ def normalize_fuel(raw: str | None) -> str | None:
     return text
 
 
+def infer_fuel(car_fuel: str | None, car_grade: str | None = None) -> str | None:
+    """CSV 유종이 없거나 비표준이면 엔카 등급명에서 표준 유종을 채운다."""
+    canon = normalize_fuel(car_fuel)
+    if canon in ENCAR_FUELS:
+        return canon
+    from_grade = normalize_fuel(car_grade)
+    if from_grade in ENCAR_FUELS:
+        return from_grade
+    return canon
+
+
 def remap_vehicle_fuels() -> dict[str, int]:
     """기존 vehicles.car_fuel 를 엔카 표준명으로 일괄 치환."""
-    from sqlalchemy import update
+    from sqlalchemy import or_, update
 
     from apps.extensions import db
     from apps.models import Vehicle
@@ -104,12 +122,23 @@ def remap_vehicle_fuels() -> dict[str, int]:
     scanned = 0
     for raw in distinct:
         scanned += 1
-        canon = normalize_fuel(raw)
+        canon = infer_fuel(raw)
         if not canon or canon == raw:
             continue
         result = db.session.execute(
             update(Vehicle).where(Vehicle.car_fuel == raw).values(car_fuel=canon)
         )
         changed += result.rowcount or 0
+
+    leftovers = db.session.execute(
+        db.select(Vehicle).where(
+            or_(Vehicle.car_fuel.is_(None), Vehicle.car_fuel.notin_(list(ENCAR_FUELS)))
+        )
+    ).scalars().all()
+    for vehicle in leftovers:
+        inferred = infer_fuel(vehicle.car_fuel, vehicle.car_grade)
+        if inferred and inferred != vehicle.car_fuel:
+            vehicle.car_fuel = inferred
+            changed += 1
     db.session.commit()
     return {"distinct": scanned, "updated": changed}

@@ -28,6 +28,7 @@ export FLASK_APP="${FLASK_APP:-wsgi:app}"
 if [ -n "${DATABASE_URL:-}" ]; then
   flask db upgrade
   echo "db upgrade ok"
+  flask remap-fuels
 else
   echo "DATABASE_URL missing; skip migrate"
 fi

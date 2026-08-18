@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from apps.services.encar_codes import EncarCodeIndex  # noqa: E402
-from apps.services.encar_fuel import normalize_fuel  # noqa: E402
+from apps.services.encar_fuel import infer_fuel  # noqa: E402
 from apps.services.filters import parse_km, parse_price_manwon, should_reject_row  # noqa: E402
 from apps.services.import_csv import _clean, csv_row_saved_at  # noqa: E402
 from config import (  # noqa: E402
@@ -131,7 +131,7 @@ def _row_tuple(row: dict, price: int, idx: EncarCodeIndex, now: datetime) -> tup
         _clean(row.get("car_submodel")),
         _clean(row.get("car_grade")),
         _clean(row.get("car_subgrade")),
-        normalize_fuel(row.get("car_fuel")),
+        infer_fuel(row.get("car_fuel"), row.get("car_grade")),
         _clean(row.get("car_mission")),
         _clean(row.get("car_color")),
         _clean(row.get("car_location")),
