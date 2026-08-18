@@ -9,6 +9,7 @@ from sqlalchemy import text, tuple_
 from apps.extensions import db
 from apps.models import ImportJob, Vehicle, utcnow
 from apps.services.encar_codes import apply_codes_to_vehicle
+from apps.services.encar_fuel import normalize_fuel
 from apps.services.filters import parse_km, parse_price_manwon, should_reject_row
 
 CHUNK_SIZE = 1000
@@ -101,7 +102,7 @@ def _apply_row(vehicle: Vehicle, row: dict, scraped_at: datetime | None, price: 
     vehicle.car_submodel = _clean(row.get("car_submodel"))
     vehicle.car_grade = _clean(row.get("car_grade"))
     vehicle.car_subgrade = _clean(row.get("car_subgrade"))
-    vehicle.car_fuel = _clean(row.get("car_fuel"))
+    vehicle.car_fuel = normalize_fuel(row.get("car_fuel"))
     vehicle.car_mission = _clean(row.get("car_mission"))
     vehicle.car_color = _clean(row.get("car_color"))
     vehicle.car_location = _clean(row.get("car_location"))

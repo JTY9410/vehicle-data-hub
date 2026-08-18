@@ -7,6 +7,7 @@ from apps.extensions import db
 from apps.models import Vehicle
 from apps.services.api_keys import request_header_api_key, verify_api_key
 from apps.services.db_stats import count_stmt_ids, estimate_row_count
+from apps.services.encar_fuel import ENCAR_FUELS, normalize_fuel
 from apps.services.import_csv import parse_date_bound
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -201,7 +202,11 @@ def list_vehicles():
     if to_dt is not None:
         stmt = stmt.filter(Vehicle.scraped_at <= to_dt)
     if fuel:
-        stmt = stmt.filter(Vehicle.car_fuel.contains(fuel))
+        canon = normalize_fuel(fuel)
+        if canon in ENCAR_FUELS:
+            stmt = stmt.filter(Vehicle.car_fuel == canon)
+        elif canon:
+            stmt = stmt.filter(Vehicle.car_fuel.contains(canon))
 
     filtered = bool(
         maker_no
@@ -246,16 +251,18 @@ def search_vehicles():
     q = (request.args.get("q") or "").strip()
     if not q:
         return jsonify(price_unit="만원", fields=list(VEHICLE_FIELDS), items=[])
+    clauses = [
+        Vehicle.car_no.contains(q),
+        Vehicle.car_model.contains(q),
+        Vehicle.car_maker.contains(q),
+        Vehicle.car_fuel.contains(q),
+    ]
+    fuel_q = normalize_fuel(q)
+    if fuel_q in ENCAR_FUELS:
+        clauses.append(Vehicle.car_fuel == fuel_q)
     stmt = (
         db.select(Vehicle)
-        .filter(
-            db.or_(
-                Vehicle.car_no.contains(q),
-                Vehicle.car_model.contains(q),
-                Vehicle.car_maker.contains(q),
-                Vehicle.car_fuel.contains(q),
-            )
-        )
+        .filter(db.or_(*clauses))
         .order_by(Vehicle.id.desc())
         .limit(50)
     )

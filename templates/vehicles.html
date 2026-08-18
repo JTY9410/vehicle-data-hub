@@ -11,7 +11,7 @@
 <p class="section-kicker mb-1">VEHICLES</p>
 <h1 class="page-title">저장된 데이터</h1>
 <p class="page-subtitle">
-  엔카 차량코드 체계(제조사 → 차량 → 등급 → 세부등급)와 연료로 검색합니다.
+  엔카 차량코드 체계(제조사 → 차량 → 등급 → 세부등급)와 엔카 표준 유종으로 검색합니다.
   CSV <code>created_at</code> 저장일자도 함께 조회됩니다.
   DB 전체 <strong>{{ "{:,}".format(total_all) }}</strong>건 · 가격 단위: 만원.
 </p>
@@ -56,7 +56,12 @@
     </div>
     <div class="col-md-2">
       <label class="form-label" for="fuel">연료</label>
-      <input class="form-control" type="text" id="fuel" name="fuel" value="{{ fuel or '' }}" placeholder="가솔린, 디젤…">
+      <select class="form-select" id="fuel" name="fuel">
+        <option value="">전체</option>
+        {% for name in fuel_options %}
+        <option value="{{ name }}" {% if fuel == name %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
     </div>
     <div class="col-md-2">
       <label class="form-label" for="per_page">페이지당</label>

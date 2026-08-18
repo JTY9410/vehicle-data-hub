@@ -101,6 +101,7 @@ def _register_cli(app):
 
     from apps.cli import seed_admin_user
     from apps.services.encar_codes import remap_all_vehicles
+    from apps.services.encar_fuel import remap_vehicle_fuels
     from apps.services.encar_seed import seed_encar_codes
     from apps.services.db_stats import hot_queries
     from apps.services.import_csv import import_csv_file
@@ -120,6 +121,11 @@ def _register_cli(app):
     def remap_vehicle_codes_cmd():
         result = remap_all_vehicles()
         click.echo(f"remap done: {result}")
+
+    @app.cli.command("remap-fuels")
+    def remap_fuels_cmd():
+        result = remap_vehicle_fuels()
+        click.echo(f"fuel remap: {result}")
 
     @app.cli.command("db-hot-queries")
     def db_hot_queries_cmd():

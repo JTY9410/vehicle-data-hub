@@ -66,7 +66,7 @@ Authorization: Bearer &lt;발급받은_API_키&gt;</code></pre>
         <tr><td><code>mdetail_no</code></td><td>엔카 세부모델 코드</td></tr>
         <tr><td><code>grade_no</code></td><td>엔카 등급 코드</td></tr>
         <tr><td><code>gdetail_no</code></td><td>엔카 세부등급 코드</td></tr>
-        <tr><td><code>car_fuel</code></td><td>연료</td></tr>
+        <tr><td><code>car_fuel</code></td><td>연료 (엔카 표준: 가솔린, 디젤, LPG, 하이브리드, 전기, 수소)</td></tr>
         <tr><td><code>car_mission</code></td><td>변속기</td></tr>
         <tr><td><code>car_color</code></td><td>색상</td></tr>
         <tr><td><code>car_location</code></td><td>지역</td></tr>
@@ -87,7 +87,7 @@ Authorization: Bearer &lt;발급받은_API_키&gt;</code></pre>
 
   <h3 class="h5">5.1 목록</h3>
   <pre class="bg-light p-3 rounded"><code>GET /api/v1/vehicles</code></pre>
-  <p class="small mb-1">Query: <code>page</code>, <code>per_page</code>, <code>include=text</code>, <code>maker_no</code>, <code>model_no</code>, <code>mdetail_no</code>, <code>grade_no</code>, <code>gdetail_no</code>, <code>maker</code>, <code>model</code>, <code>fuel</code> (<code>car_fuel</code> 별칭), <code>site_type</code>, <code>year</code>, <code>price_min</code>, <code>price_max</code>, <code>created_at_from</code>, <code>created_at_to</code></p>
+  <p class="small mb-1">Query: <code>page</code>, <code>per_page</code>, <code>include=text</code>, <code>maker_no</code>, <code>model_no</code>, <code>mdetail_no</code>, <code>grade_no</code>, <code>gdetail_no</code>, <code>maker</code>, <code>model</code>, <code>fuel</code> (엔카 유종. <code>car_fuel</code>·<code>휘발유</code> 등 별칭 가능), <code>site_type</code>, <code>year</code>, <code>price_min</code>, <code>price_max</code>, <code>created_at_from</code>, <code>created_at_to</code></p>
   <pre class="bg-light p-3 rounded"><code>{
   "price_unit": "만원",
   "page": 1,

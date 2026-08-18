@@ -30,6 +30,7 @@ from apps.models import (
 )
 from apps.services.api_keys import create_api_key, reveal_api_key, revoke_api_key
 from apps.services.db_stats import count_stmt_ids, estimate_row_count, hot_queries
+from apps.services.encar_fuel import ENCAR_FUELS, normalize_fuel
 from apps.services.import_csv import import_csv_file, parse_date_bound
 
 bp = Blueprint("admin", __name__)
@@ -235,7 +236,11 @@ def vehicles():
     if saved_to_dt is not None:
         stmt = stmt.where(Vehicle.scraped_at <= saved_to_dt)
     if fuel:
-        stmt = stmt.where(Vehicle.car_fuel.contains(fuel))
+        canon = normalize_fuel(fuel)
+        if canon in ENCAR_FUELS:
+            stmt = stmt.where(Vehicle.car_fuel == canon)
+        else:
+            stmt = stmt.where(Vehicle.car_fuel.contains(fuel))
 
     if filtered:
         try:
@@ -282,6 +287,7 @@ def vehicles():
         saved_from=saved_from,
         saved_to=saved_to,
         fuel=fuel,
+        fuel_options=ENCAR_FUELS,
         page=page,
         pages=pages,
         total=total,
