@@ -29,6 +29,8 @@ if [ -n "${DATABASE_URL:-}" ]; then
   flask db upgrade
   echo "db upgrade ok"
   flask remap-fuels
+  flask remap-attrs
+  flask remap-canonical-names
 else
   echo "DATABASE_URL missing; skip migrate"
 fi

@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from sqlalchemy import text
+
 from apps.extensions import db
 from apps.models import (
     Vehicle,
@@ -232,6 +234,36 @@ def apply_codes_to_vehicle(
     vehicle.mdetail_no = codes["mdetail_no"]
     vehicle.grade_no = codes["grade_no"]
     vehicle.gdetail_no = codes["gdetail_no"]
+    idx = index or get_code_index()
+    if codes["maker_no"]:
+        for pk, name in idx.makers:
+            if pk == codes["maker_no"]:
+                vehicle.car_maker = name
+                break
+    if codes["model_no"]:
+        for pk, name in idx.models_by_maker.get(codes["maker_no"] or "", []):
+            if pk == codes["model_no"]:
+                vehicle.car_model = name
+                break
+    if codes["mdetail_no"]:
+        for pk, name in idx.mdetails_by_model.get(codes["model_no"] or "", []):
+            if pk == codes["mdetail_no"]:
+                vehicle.car_submodel = name
+                break
+    if codes["grade_no"]:
+        grades = idx.grades_by_mdetail.get(codes["mdetail_no"] or "", [])
+        if not grades and codes["model_no"]:
+            for md_no, _ in idx.mdetails_by_model.get(codes["model_no"] or "", []):
+                grades.extend(idx.grades_by_mdetail.get(md_no, []))
+        for pk, name in grades:
+            if pk == codes["grade_no"]:
+                vehicle.car_grade = name
+                break
+    if codes["gdetail_no"] and codes["grade_no"]:
+        for pk, name in idx.gdetails_by_grade.get(codes["grade_no"] or "", []):
+            if pk == codes["gdetail_no"]:
+                vehicle.car_subgrade = name
+                break
     return codes
 
 
@@ -257,3 +289,29 @@ def remap_all_vehicles(chunk_size: int = 500) -> dict[str, int]:
             last_id = v.id
         db.session.commit()
     return {"total": total, "mapped_maker": mapped}
+
+
+def remap_canonical_names() -> dict[str, int]:
+    """코드가 있는 행의 명칭을 엔카 코드표 표준명으로 맞춘다."""
+    bind = db.session.get_bind()
+    if bind.dialect.name != "postgresql":
+        result = remap_all_vehicles()
+        return {"mode": "orm", **result}
+    stmts = (
+        "UPDATE vehicles AS v SET car_maker = m.maker_name FROM vehicle_maker m "
+        "WHERE v.maker_no = m.maker_no",
+        "UPDATE vehicles AS v SET car_model = m.model_name FROM vehicle_model m "
+        "WHERE v.model_no = m.model_no",
+        "UPDATE vehicles AS v SET car_submodel = d.mdetail_name FROM vehicle_model_detail d "
+        "WHERE v.mdetail_no = d.mdetail_no",
+        "UPDATE vehicles AS v SET car_grade = g.grade_name FROM vehicle_grade g "
+        "WHERE v.grade_no = g.grade_no",
+        "UPDATE vehicles AS v SET car_subgrade = d.gdetail_name FROM vehicle_grade_detail d "
+        "WHERE v.gdetail_no = d.gdetail_no",
+    )
+    updated = 0
+    for sql in stmts:
+        result = db.session.execute(text(sql))
+        updated += result.rowcount or 0
+    db.session.commit()
+    return {"mode": "sql", "updated": updated}

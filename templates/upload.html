@@ -27,6 +27,9 @@
       <input class="form-control" type="file" id="file" name="file" accept=".csv" required>
     </div>
     <button class="btn btn-primary" type="submit"{% if on_vercel %} disabled{% endif %}>업로드 및 적재</button>
+    <button type="button" class="btn btn-outline-primary ms-2" id="openResetDialog" aria-haspopup="dialog" aria-controls="resetDataDialog">
+      업로드 데이터 초기화
+    </button>
   </form>
   {% if on_vercel %}
   <script>
@@ -52,4 +55,8 @@
   </ul>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block body_end %}
+{% include "_reset_data_dialog.html" %}
 {% endblock %}

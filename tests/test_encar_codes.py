@@ -92,3 +92,13 @@ def test_maker_alias_renault(app, tmp_path):
             car_subgrade=None,
         )
         assert codes["maker_no"] == "1"
+
+        v = Vehicle(
+            site_type="encar",
+            site_id="alias-1",
+            car_maker="르노코리아(삼성)",
+            car_price=1000,
+        )
+        apply_codes_to_vehicle(v)
+        assert v.maker_no == "1"
+        assert v.car_maker == "르노(삼성)"

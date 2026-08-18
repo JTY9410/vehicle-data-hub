@@ -14,6 +14,11 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from apps.services.encar_attrs import (  # noqa: E402
+    normalize_color,
+    normalize_mission,
+    normalize_type,
+)
 from apps.services.encar_codes import EncarCodeIndex  # noqa: E402
 from apps.services.encar_fuel import infer_fuel  # noqa: E402
 from apps.services.filters import parse_km, parse_price_manwon, should_reject_row  # noqa: E402
@@ -110,6 +115,15 @@ def _load_index() -> EncarCodeIndex:
     return idx
 
 
+def _label(items: list[tuple[str, str]], pk: str | None) -> str | None:
+    if not pk:
+        return None
+    for key, name in items:
+        if key == pk:
+            return name
+    return None
+
+
 def _row_tuple(row: dict, price: int, idx: EncarCodeIndex, now: datetime) -> tuple:
     codes = idx.resolve(
         car_maker=_clean(row.get("car_maker")),
@@ -118,6 +132,10 @@ def _row_tuple(row: dict, price: int, idx: EncarCodeIndex, now: datetime) -> tup
         car_grade=_clean(row.get("car_grade")),
         car_subgrade=_clean(row.get("car_subgrade")),
     )
+    grades = idx.grades_by_mdetail.get(codes["mdetail_no"] or "", [])
+    if not grades and codes["model_no"]:
+        for md_no, _ in idx.mdetails_by_model.get(codes["model_no"] or "", []):
+            grades.extend(idx.grades_by_mdetail.get(md_no, []))
     return (
         _clean(row.get("id")),
         (row.get("site_type") or "").strip(),
@@ -126,18 +144,21 @@ def _row_tuple(row: dict, price: int, idx: EncarCodeIndex, now: datetime) -> tup
         _clean(row.get("car_year")),
         parse_km(row.get("car_km")),
         price,
-        _clean(row.get("car_maker")),
-        _clean(row.get("car_model")),
-        _clean(row.get("car_submodel")),
-        _clean(row.get("car_grade")),
-        _clean(row.get("car_subgrade")),
+        _label(idx.makers, codes["maker_no"]) or _clean(row.get("car_maker")),
+        _label(idx.models_by_maker.get(codes["maker_no"] or "", []), codes["model_no"])
+        or _clean(row.get("car_model")),
+        _label(idx.mdetails_by_model.get(codes["model_no"] or "", []), codes["mdetail_no"])
+        or _clean(row.get("car_submodel")),
+        _label(grades, codes["grade_no"]) or _clean(row.get("car_grade")),
+        _label(idx.gdetails_by_grade.get(codes["grade_no"] or "", []), codes["gdetail_no"])
+        or _clean(row.get("car_subgrade")),
         infer_fuel(row.get("car_fuel"), row.get("car_grade")),
-        _clean(row.get("car_mission")),
-        _clean(row.get("car_color")),
+        normalize_mission(row.get("car_mission")),
+        normalize_color(row.get("car_color")),
         _clean(row.get("car_location")),
         _clean(row.get("car_import_yn")),
         _clean(row.get("car_cc")),
-        _clean(row.get("car_type")),
+        normalize_type(row.get("car_type")),
         _clean(row.get("car_seat")),
         _clean(row.get("detail_info")),
         _clean(row.get("option_info")),

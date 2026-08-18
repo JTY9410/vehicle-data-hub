@@ -1,0 +1,33 @@
+<dialog id="resetDataDialog" class="reset-dialog" aria-labelledby="resetDataDialogLabel">
+  <form method="post" action="{{ url_for('admin.reset_data') }}" class="reset-dialog-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <header class="reset-dialog-header">
+      <h2 class="h5 mb-0" id="resetDataDialogLabel">업로드 데이터 초기화</h2>
+      <button type="button" class="btn-close" id="closeResetDialog" aria-label="닫기"></button>
+    </header>
+    <div class="reset-dialog-body">
+      <p class="mb-2">CSV로 올린 차량 데이터와 적재 이력을 <strong>모두 삭제</strong>합니다. API 키·관리자 계정·엔카 코드는 유지됩니다.</p>
+      <p class="text-danger small">이 작업은 되돌릴 수 없습니다.</p>
+      <label class="form-label" for="confirm">확인을 위해 <code>DELETE</code> 입력</label>
+      <input class="form-control" id="confirm" name="confirm" required autocomplete="off" placeholder="DELETE">
+    </div>
+    <footer class="reset-dialog-footer">
+      <button type="button" class="btn btn-outline-secondary" id="cancelResetDialog">취소</button>
+      <button type="submit" class="btn btn-primary">초기화 실행</button>
+    </footer>
+  </form>
+</dialog>
+<script>
+(() => {
+  const dialog = document.getElementById("resetDataDialog");
+  const openBtn = document.getElementById("openResetDialog");
+  if (!dialog || !openBtn) return;
+  const close = () => dialog.close();
+  openBtn.addEventListener("click", () => dialog.showModal());
+  document.getElementById("closeResetDialog")?.addEventListener("click", close);
+  document.getElementById("cancelResetDialog")?.addEventListener("click", close);
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) close();
+  });
+})();
+</script>

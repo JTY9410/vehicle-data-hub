@@ -10,6 +10,7 @@ from apps.extensions import db
 from apps.models import ImportJob, Vehicle, utcnow
 from apps.services.encar_codes import apply_codes_to_vehicle
 from apps.services.encar_fuel import infer_fuel
+from apps.services.encar_attrs import normalize_color, normalize_mission, normalize_type
 from apps.services.filters import parse_km, parse_price_manwon, should_reject_row
 
 CHUNK_SIZE = 1000
@@ -103,12 +104,12 @@ def _apply_row(vehicle: Vehicle, row: dict, scraped_at: datetime | None, price: 
     vehicle.car_grade = _clean(row.get("car_grade"))
     vehicle.car_subgrade = _clean(row.get("car_subgrade"))
     vehicle.car_fuel = infer_fuel(row.get("car_fuel"), row.get("car_grade"))
-    vehicle.car_mission = _clean(row.get("car_mission"))
-    vehicle.car_color = _clean(row.get("car_color"))
+    vehicle.car_mission = normalize_mission(row.get("car_mission"))
+    vehicle.car_color = normalize_color(row.get("car_color"))
     vehicle.car_location = _clean(row.get("car_location"))
     vehicle.car_import_yn = _clean(row.get("car_import_yn"))
     vehicle.car_cc = _clean(row.get("car_cc"))
-    vehicle.car_type = _clean(row.get("car_type"))
+    vehicle.car_type = normalize_type(row.get("car_type"))
     vehicle.car_seat = _clean(row.get("car_seat"))
     vehicle.detail_info = _clean(row.get("detail_info"))
     vehicle.option_info = _clean(row.get("option_info"))
