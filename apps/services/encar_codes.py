@@ -297,21 +297,26 @@ def remap_canonical_names() -> dict[str, int]:
     if bind.dialect.name != "postgresql":
         result = remap_all_vehicles()
         return {"mode": "orm", **result}
+    try:
+        db.session.execute(text("SET statement_timeout = 0"))
+        db.session.commit()
+    except Exception:  # noqa: BLE001
+        db.session.rollback()
     stmts = (
         "UPDATE vehicles AS v SET car_maker = m.maker_name FROM vehicle_maker m "
-        "WHERE v.maker_no = m.maker_no",
+        "WHERE v.maker_no = m.maker_no AND v.car_maker IS DISTINCT FROM m.maker_name",
         "UPDATE vehicles AS v SET car_model = m.model_name FROM vehicle_model m "
-        "WHERE v.model_no = m.model_no",
+        "WHERE v.model_no = m.model_no AND v.car_model IS DISTINCT FROM m.model_name",
         "UPDATE vehicles AS v SET car_submodel = d.mdetail_name FROM vehicle_model_detail d "
-        "WHERE v.mdetail_no = d.mdetail_no",
+        "WHERE v.mdetail_no = d.mdetail_no AND v.car_submodel IS DISTINCT FROM d.mdetail_name",
         "UPDATE vehicles AS v SET car_grade = g.grade_name FROM vehicle_grade g "
-        "WHERE v.grade_no = g.grade_no",
+        "WHERE v.grade_no = g.grade_no AND v.car_grade IS DISTINCT FROM g.grade_name",
         "UPDATE vehicles AS v SET car_subgrade = d.gdetail_name FROM vehicle_grade_detail d "
-        "WHERE v.gdetail_no = d.gdetail_no",
+        "WHERE v.gdetail_no = d.gdetail_no AND v.car_subgrade IS DISTINCT FROM d.gdetail_name",
     )
     updated = 0
     for sql in stmts:
         result = db.session.execute(text(sql))
         updated += result.rowcount or 0
-    db.session.commit()
+        db.session.commit()
     return {"mode": "sql", "updated": updated}
