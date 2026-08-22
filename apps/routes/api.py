@@ -22,7 +22,7 @@ VEHICLE_FIELDS = (
     "car_year",
     "car_km",
     "car_price",
-        "car_maker",
+    "car_maker",
     "car_model",
     "car_submodel",
     "car_grade",

@@ -22,16 +22,26 @@ _COUNT_TABLES = frozenset(
 
 
 def estimate_row_count(table: str) -> int:
-    """pg_class.reltuples 우선. 없으면 작은 테이블만 exact count."""
+    """pg_class.reltuples 우선. 미분석(-1)이어도 COUNT(*) 풀스캔은 하지 않는다."""
     if table not in _COUNT_TABLES:
         raise ValueError(f"unsupported table: {table}")
     try:
         est = db.session.execute(
-            text("SELECT reltuples::bigint FROM pg_class WHERE relname = :t"),
+            text(
+                """
+                SELECT c.reltuples::bigint
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relname = :t
+                  AND n.nspname = 'public'
+                  AND c.relkind = 'r'
+                """
+            ),
             {"t": table},
         ).scalar()
-        if est is not None and int(est) > 0:
-            return int(est)
+        if est is not None:
+            # -1 = never analyzed → 0으로 두고 목록 화면이 실제 행으로 보정
+            return max(int(est), 0)
     except Exception:  # noqa: BLE001
         db.session.rollback()
     return int(
@@ -40,8 +50,12 @@ def estimate_row_count(table: str) -> int:
 
 
 def count_stmt_ids(stmt: Select, id_column) -> int:
-    """서브쿼리에 전체 컬럼(특히 Text)을 넣지 않고 id만 센다."""
-    inner = stmt.order_by(None).with_only_columns(id_column)
+    """서브쿼리에 전체 컬럼(특히 Text)·load_only 옵션을 넣지 않고 id만 센다."""
+    inner = (
+        stmt.order_by(None)
+        .options(*())
+        .with_only_columns(id_column, maintain_column_froms=True)
+    )
     return int(
         db.session.execute(
             db.select(db.func.count()).select_from(inner.subquery())

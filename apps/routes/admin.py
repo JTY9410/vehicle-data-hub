@@ -242,6 +242,7 @@ def vehicles():
         else:
             stmt = stmt.where(Vehicle.car_fuel.contains(fuel))
 
+    date_filtered = saved_from_dt is not None or saved_to_dt is not None
     if filtered:
         try:
             total = count_stmt_ids(stmt, Vehicle.id)
@@ -252,8 +253,12 @@ def vehicles():
             except Exception:  # noqa: BLE001
                 db.session.rollback()
             total = total_all
-        # 날짜 필터 시 scraped_at 인덱스 활용 (NULLS LAST 금지: PG 풀스캔 유발)
-        order = (Vehicle.scraped_at.desc(), Vehicle.id.desc())
+        # 날짜 필터만 scraped_at 정렬 → ix_vehicles_scraped_at_id
+        # 코드 필터는 id 정렬 → ix_vehicles_maker_no_id / model_no_id
+        if date_filtered:
+            order = (Vehicle.scraped_at.desc(), Vehicle.id.desc())
+        else:
+            order = (Vehicle.id.desc(),)
     else:
         total = total_all
         # PK 역순이 서버리스에서 가장 빠름

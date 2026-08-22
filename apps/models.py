@@ -28,6 +28,10 @@ class Vehicle(db.Model):
         Index("ix_vehicle_price", "car_price"),
         Index("ix_vehicle_scraped_at", "scraped_at"),
         Index("ix_vehicle_car_no", "car_no"),
+        # filter + id sort (API/admin). migration c3d4e5f6a7b8
+        Index("ix_vehicles_maker_no_id", "maker_no", "id"),
+        Index("ix_vehicles_model_no_id", "model_no", "id"),
+        Index("ix_vehicles_scraped_at_id", "scraped_at", "id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
