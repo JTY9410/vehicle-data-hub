@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -21,7 +25,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t vehicle-data-hub:ci .
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/jty9410/vehicle-data-hub:latest
+            ghcr.io/jty9410/vehicle-data-hub:${{ github.sha }}
 
   supabase:
     needs: test
@@ -38,15 +53,6 @@ jobs:
       - name: Migrate Supabase
         if: env.DATABASE_URL != ''
         run: flask db upgrade
-      - name: Remap existing fuels
-        if: env.DATABASE_URL != ''
-        run: flask remap-fuels
-      - name: Remap mission color type
-        if: env.DATABASE_URL != ''
-        run: flask remap-attrs
-      - name: Remap Encar names
-        if: env.DATABASE_URL != ''
-        run: flask remap-canonical-names
       - name: Skip migrate
         if: env.DATABASE_URL == ''
         run: echo "Set GitHub secret DATABASE_URL to enable migrate"
@@ -54,10 +60,12 @@ jobs:
   vercel:
     needs: test
     runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Deploy Vercel
-        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        if: env.VERCEL_TOKEN != ''
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
@@ -68,5 +76,5 @@ jobs:
           alias-domains: |
             vehicle-data-hub-alpha.vercel.app
       - name: Skip Vercel
-        if: ${{ secrets.VERCEL_TOKEN == '' }}
-        run: echo "Set VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID secrets to enable deploy"
+        if: env.VERCEL_TOKEN == ''
+        run: echo "GitHub-Vercel integration deploys on push; set VERCEL_TOKEN to also deploy from Actions"
