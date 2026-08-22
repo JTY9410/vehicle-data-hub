@@ -6,7 +6,7 @@ from sqlalchemy.orm import load_only
 from apps.extensions import db
 from apps.models import Vehicle
 from apps.services.api_keys import request_header_api_key, verify_api_key
-from apps.services.db_stats import count_stmt_ids, estimate_row_count
+from apps.services.db_stats import count_stmt_ids, estimate_row_count, vehicle_list_order
 from apps.services.encar_fuel import ENCAR_FUELS, normalize_fuel
 from apps.services.import_csv import parse_date_bound
 
@@ -208,7 +208,8 @@ def list_vehicles():
         elif canon:
             stmt = stmt.filter(Vehicle.car_fuel.contains(canon))
 
-    filtered = bool(
+    date_filtered = from_dt is not None or to_dt is not None
+    code_filtered = bool(
         maker_no
         or model_no
         or mdetail_no
@@ -220,17 +221,19 @@ def list_vehicles():
         or year
         or price_min is not None
         or price_max is not None
-        or from_dt
-        or to_dt
         or fuel
     )
+    filtered = code_filtered or date_filtered
     if filtered:
         total = count_stmt_ids(stmt, Vehicle.id)
     else:
         total = estimate_row_count("vehicles")
     list_stmt = stmt if include_text else stmt.options(_LIST_LOAD)
+    order = vehicle_list_order(
+        code_filtered=code_filtered, date_filtered=date_filtered
+    )
     rows = db.session.execute(
-        list_stmt.order_by(Vehicle.id.desc()).offset((page - 1) * per_page).limit(per_page)
+        list_stmt.order_by(*order).offset((page - 1) * per_page).limit(per_page)
     ).scalars().all()
     fields = list(VEHICLE_FIELDS) if include_text else [
         f for f in VEHICLE_FIELDS if f not in _TEXT_FIELDS

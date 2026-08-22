@@ -29,19 +29,16 @@ from apps.models import (
     VehicleModelDetail,
 )
 from apps.services.api_keys import create_api_key, reveal_api_key, revoke_api_key
-from apps.services.db_stats import count_stmt_ids, estimate_row_count, hot_queries
+from apps.services.db_stats import (
+    count_stmt_ids,
+    estimate_row_count,
+    hot_queries,
+    vehicle_list_order,
+)
 from apps.services.encar_fuel import ENCAR_FUELS, normalize_fuel
 from apps.services.import_csv import import_csv_file, parse_date_bound
 
 bp = Blueprint("admin", __name__)
-
-def vehicle_list_order(*, code_filtered: bool, date_filtered: bool):
-    """코드 필터가 있으면 id 정렬(복합 인덱스). 날짜만이면 scraped_at+id."""
-    if date_filtered and not code_filtered:
-        return (Vehicle.scraped_at.desc(), Vehicle.id.desc())
-    return (Vehicle.id.desc(),)
-
-
 
 
 @bp.route("/login", methods=["GET", "POST"])

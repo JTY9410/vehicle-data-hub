@@ -82,7 +82,7 @@ def test_admin_vehicles_code_filter_orders_by_id(client, app):
 
 def test_vehicle_list_order_prefers_id_when_code_and_date_filtered(app):
     """코드+날짜 동시 필터는 maker_no_id 인덱스를 쓰도록 id 정렬."""
-    from apps.routes.admin import vehicle_list_order
+    from apps.services.db_stats import vehicle_list_order
 
     with app.app_context():
         order = vehicle_list_order(code_filtered=True, date_filtered=True)

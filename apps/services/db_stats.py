@@ -21,6 +21,15 @@ _COUNT_TABLES = frozenset(
 )
 
 
+def vehicle_list_order(*, code_filtered: bool, date_filtered: bool):
+    """코드 필터가 있으면 id 정렬(복합 인덱스). 날짜만이면 scraped_at+id."""
+    from apps.models import Vehicle
+
+    if date_filtered and not code_filtered:
+        return (Vehicle.scraped_at.desc(), Vehicle.id.desc())
+    return (Vehicle.id.desc(),)
+
+
 def estimate_row_count(table: str) -> int:
     """pg_class.reltuples 우선. 미분석(-1)이어도 COUNT(*) 풀스캔은 하지 않는다."""
     if table not in _COUNT_TABLES:
