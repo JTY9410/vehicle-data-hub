@@ -32,6 +32,7 @@ class Vehicle(db.Model):
         Index("ix_vehicles_maker_no_id", "maker_no", "id"),
         Index("ix_vehicles_model_no_id", "model_no", "id"),
         Index("ix_vehicles_scraped_at_id", "scraped_at", "id"),
+        Index("ix_vehicles_car_fuel_id", "car_fuel", "id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -140,8 +140,24 @@ class Config:
         PREFERRED_URL_SCHEME = "https"
         WTF_CSRF_SSL_STRICT = False
     else:
-        SQLALCHEMY_DATABASE_URI = _normalize_database_url(
+        uri = _normalize_database_url(
             _raw_db or f"sqlite:///{BASE_DIR / 'instance' / 'app.db'}"
         )
+        # Docker/로컬 → Supabase pooler: SSL + prepared statement 비활성
+        if "supabase" in uri or "pooler.supabase.com" in uri:
+            uri = _ensure_pooler_username(_strip_pgbouncer_query(uri))
+            if "@db." in uri:
+                uri = _ensure_pooler_username(_prefer_supabase_pooler(uri))
+            SQLALCHEMY_DATABASE_URI = uri
+            SQLALCHEMY_ENGINE_OPTIONS = {
+                "pool_pre_ping": True,
+                "connect_args": {
+                    "sslmode": "require",
+                    "prepare_threshold": None,
+                    "connect_timeout": 10,
+                },
+            }
+        else:
+            SQLALCHEMY_DATABASE_URI = uri
         UPLOAD_FOLDER = BASE_DIR / "uploads"
         MAX_CONTENT_LENGTH = 512 * 1024 * 1024

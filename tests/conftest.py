@@ -12,8 +12,9 @@ def app(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", db_url)
     monkeypatch.setenv("ADMIN_USERNAME", "wecar")
     monkeypatch.setenv("ADMIN_PASSWORD", "1004wecar")
-    # Config.SQLALCHEMY_DATABASE_URI is baked at import from .env — override before create_app.
+    # Config URI/ENGINE_OPTIONS are baked at import from .env — override before create_app.
     monkeypatch.setattr(config_module.Config, "SQLALCHEMY_DATABASE_URI", db_url)
+    monkeypatch.setattr(config_module.Config, "SQLALCHEMY_ENGINE_OPTIONS", {}, raising=False)
     application = create_app()
     application.config.update(
         TESTING=True,

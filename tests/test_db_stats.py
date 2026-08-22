@@ -78,3 +78,45 @@ def test_admin_vehicles_code_filter_orders_by_id(client, app):
     r = client.get("/vehicles?maker_no=10055")
     assert r.status_code == 200
     assert "쏘나타".encode() in r.data
+
+
+def test_vehicle_list_order_prefers_id_when_code_and_date_filtered(app):
+    """코드+날짜 동시 필터는 maker_no_id 인덱스를 쓰도록 id 정렬."""
+    from apps.routes.admin import vehicle_list_order
+
+    with app.app_context():
+        order = vehicle_list_order(code_filtered=True, date_filtered=True)
+        assert len(order) == 1
+        assert "vehicles.id" in str(order[0])
+
+        date_only = vehicle_list_order(code_filtered=False, date_filtered=True)
+        assert len(date_only) == 2
+        assert "scraped_at" in str(date_only[0])
+
+
+def test_estimate_row_count_skips_full_count_on_postgres(app, monkeypatch):
+    """Postgres에서 reltuples 조회 실패 시 COUNT(*) 풀스캔으로 떨어지지 않는다."""
+    from apps.services import db_stats
+
+    class _FakeResult:
+        def scalar(self):
+            raise RuntimeError("boom")
+
+    class _FakeSession:
+        def execute(self, *_a, **_k):
+            return _FakeResult()
+
+        def rollback(self):
+            pass
+
+        def remove(self):
+            pass
+
+        def get_bind(self):
+            return self.bind
+
+        bind = type("B", (), {"dialect": type("D", (), {"name": "postgresql"})()})()
+
+    monkeypatch.setattr(db_stats.db, "session", _FakeSession())
+    with app.app_context():
+        assert db_stats.estimate_row_count("vehicles") == 0

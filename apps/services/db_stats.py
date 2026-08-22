@@ -44,6 +44,11 @@ def estimate_row_count(table: str) -> int:
             return max(int(est), 0)
     except Exception:  # noqa: BLE001
         db.session.rollback()
+    # Postgres 대용량 테이블에서 COUNT(*) 풀스캔 금지 (SQLite 테스트만 exact)
+    bind = db.session.get_bind() if hasattr(db.session, "get_bind") else getattr(db.session, "bind", None)
+    dialect = getattr(getattr(bind, "dialect", None), "name", None)
+    if dialect == "postgresql":
+        return 0
     return int(
         db.session.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar() or 0
     )

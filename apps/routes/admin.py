@@ -35,6 +35,14 @@ from apps.services.import_csv import import_csv_file, parse_date_bound
 
 bp = Blueprint("admin", __name__)
 
+def vehicle_list_order(*, code_filtered: bool, date_filtered: bool):
+    """코드 필터가 있으면 id 정렬(복합 인덱스). 날짜만이면 scraped_at+id."""
+    if date_filtered and not code_filtered:
+        return (Vehicle.scraped_at.desc(), Vehicle.id.desc())
+    return (Vehicle.id.desc(),)
+
+
+
 
 @bp.route("/login", methods=["GET", "POST"])
 def login():
@@ -243,6 +251,16 @@ def vehicles():
             stmt = stmt.where(Vehicle.car_fuel.contains(fuel))
 
     date_filtered = saved_from_dt is not None or saved_to_dt is not None
+    code_filtered = bool(
+        maker_no
+        or model_no
+        or grade_no
+        or gdetail_no
+        or maker
+        or model
+        or subgrade
+        or fuel
+    )
     if filtered:
         try:
             total = count_stmt_ids(stmt, Vehicle.id)
@@ -253,16 +271,15 @@ def vehicles():
             except Exception:  # noqa: BLE001
                 db.session.rollback()
             total = total_all
-        # 날짜 필터만 scraped_at 정렬 → ix_vehicles_scraped_at_id
-        # 코드 필터는 id 정렬 → ix_vehicles_maker_no_id / model_no_id
-        if date_filtered:
-            order = (Vehicle.scraped_at.desc(), Vehicle.id.desc())
-        else:
-            order = (Vehicle.id.desc(),)
+        # 날짜만 scraped_at → ix_vehicles_scraped_at_id
+        # 코드(+날짜)는 id → ix_vehicles_maker_no_id 등 (날짜+scraped 정렬은 maker 필터를 풀스캔)
+        order = vehicle_list_order(
+            code_filtered=code_filtered, date_filtered=date_filtered
+        )
     else:
         total = total_all
         # PK 역순이 서버리스에서 가장 빠름
-        order = (Vehicle.id.desc(),)
+        order = vehicle_list_order(code_filtered=False, date_filtered=False)
 
     pages = max((total + per_page - 1) // per_page, 1) if total else 0
     if pages and page > pages:
