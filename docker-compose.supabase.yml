@@ -14,3 +14,8 @@ services:
     environment:
       # SUPABASE_DATABASE_URL 우선, 없으면 .env의 DATABASE_URL (--env-file) 사용
       DATABASE_URL: ${SUPABASE_DATABASE_URL:-${DATABASE_URL:?DATABASE_URL 또는 SUPABASE_DATABASE_URL 필요}}
+
+  scheduler:
+    depends_on: !reset []
+    environment:
+      DATABASE_URL: ${SUPABASE_DATABASE_URL:-${DATABASE_URL:?DATABASE_URL 또는 SUPABASE_DATABASE_URL 필요}}

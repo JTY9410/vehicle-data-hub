@@ -113,6 +113,8 @@ def _apply_row(vehicle: Vehicle, row: dict, scraped_at: datetime | None, price: 
     vehicle.car_seat = _clean(row.get("car_seat"))
     vehicle.detail_info = _clean(row.get("detail_info"))
     vehicle.option_info = _clean(row.get("option_info"))
+    vehicle.unique_option_info = _clean(row.get("unique_option_info"))
+    vehicle.inspected_at = parse_csv_saved_at(row.get("inspected_at"))
     vehicle.diag_info = _clean(row.get("diag_info"))
     vehicle.url_link = _clean(row.get("url_link"))
     vehicle.scraped_at = scraped_at

@@ -2,7 +2,6 @@ import os
 
 from flask import (
     Blueprint,
-    current_app,
     flash,
     jsonify,
     redirect,
@@ -36,6 +35,15 @@ from apps.services.db_stats import (
 from apps.services.encar_fuel import ENCAR_FUELS, normalize_fuel
 from apps.services.import_crawl import import_from_crawl
 from apps.services.import_csv import parse_date_bound
+from apps.services.scheduler import next_sunday_midnight_kst
+from apps.services.settings import (
+    CRAWL_API_KEY,
+    CRAWL_API_URL,
+    crawl_credentials,
+    crawl_key_configured,
+    masked_crawl_key,
+    set_setting,
+)
 
 bp = Blueprint("admin", __name__)
 
@@ -393,7 +401,7 @@ def code_gdetails():
 def upload():
     job = None
     on_vercel = bool(os.environ.get("VERCEL"))
-    crawl_configured = bool((current_app.config.get("CRAWL_API_KEY") or "").strip())
+    crawl_configured = crawl_key_configured()
     if request.method == "POST":
         if on_vercel:
             flash(
@@ -426,7 +434,12 @@ def upload_status(job_id: int):
     if job is None:
         flash("작업을 찾을 수 없습니다.", "warning")
         return redirect(url_for("admin.upload"))
-    return render_template("upload.html", job=job)
+    return render_template(
+        "upload.html",
+        job=job,
+        on_vercel=bool(os.environ.get("VERCEL")),
+        crawl_configured=crawl_key_configured(),
+    )
 
 
 @bp.get("/upload/<int:job_id>/status")
@@ -446,21 +459,66 @@ def upload_status_json(job_id: int):
     )
 
 
+def _render_settings(*, plaintext=None, job=None):
+    keys = db.session.execute(
+        db.select(ApiKey).order_by(ApiKey.id.desc())
+    ).scalars().all()
+    crawl_url, _key = crawl_credentials()
+    return render_template(
+        "settings.html",
+        keys=keys,
+        plaintext=plaintext,
+        job=job,
+        crawl_url=crawl_url,
+        crawl_key_masked=masked_crawl_key(),
+        crawl_configured=crawl_key_configured(),
+        next_collect_at=next_sunday_midnight_kst(),
+        on_vercel=bool(os.environ.get("VERCEL")),
+    )
+
+
+@bp.route("/settings", methods=["GET", "POST"])
 @bp.route("/api-keys", methods=["GET", "POST"])
 @login_required
 def api_keys():
     plaintext = None
     if request.method == "POST":
+        action = (request.form.get("action") or "").strip()
+        if action == "save_crawl":
+            url = (request.form.get("crawl_api_url") or "").strip() or None
+            key = (request.form.get("crawl_api_key") or "").strip()
+            if url:
+                set_setting(CRAWL_API_URL, url)
+            if key:
+                set_setting(CRAWL_API_KEY, key)
+            if not url and not key:
+                flash("크롤 API URL 또는 키를 입력하세요.", "warning")
+            else:
+                flash("크롤 API 설정을 저장했습니다.", "success")
+            return redirect(url_for("admin.api_keys"))
+        if action == "collect":
+            if os.environ.get("VERCEL"):
+                flash(
+                    "Vercel에서는 전량 수집이 끊길 수 있습니다. Docker에서 수기 수집하세요.",
+                    "warning",
+                )
+                return redirect(url_for("admin.api_keys"))
+            if not crawl_key_configured():
+                flash("크롤 API 키를 먼저 저장하세요.", "warning")
+                return redirect(url_for("admin.api_keys"))
+            job = import_from_crawl(source="web", filename="manual")
+            flash(
+                f"수집 완료: 저장 {job.saved_rows}, 거부 {job.rejected_rows}, 스킵 {job.skipped_rows}",
+                "success",
+            )
+            return redirect(url_for("admin.upload_status", job_id=job.id))
         name = (request.form.get("name") or "").strip()
         if not name:
             flash("키 이름을 입력하세요.", "warning")
         else:
             _row, plaintext = create_api_key(name)
             flash("API 키가 발급되었습니다. 이름을 클릭하면 다시 보고 복사할 수 있습니다.", "success")
-    keys = db.session.execute(
-        db.select(ApiKey).order_by(ApiKey.id.desc())
-    ).scalars().all()
-    return render_template("api_keys.html", keys=keys, plaintext=plaintext)
+    return _render_settings(plaintext=plaintext)
 
 
 @bp.get("/api-keys/<int:key_id>/reveal")

@@ -99,7 +99,8 @@ def test_import_from_crawl_replaces_all_and_rejects_rental_and_9999(app):
         assert kept.site_id == "keep"
         assert kept.source_id == "1"
         assert kept.car_price == 1800
-        assert kept.option_info == "opt\nuniq"
+        assert kept.option_info == "opt"
+        assert kept.unique_option_info == "uniq"
         assert kept.car_seat == "5"
 
 

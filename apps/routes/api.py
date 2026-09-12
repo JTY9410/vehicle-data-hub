@@ -38,6 +38,8 @@ VEHICLE_FIELDS = (
     "car_location",
     "detail_info",
     "option_info",
+    "unique_option_info",
+    "inspected_at",
     "diag_info",
     "url_link",
     "created_at",
@@ -73,7 +75,7 @@ def require_api_key(view):
     return wrapped
 
 
-_TEXT_FIELDS = ("detail_info", "option_info", "diag_info")
+_TEXT_FIELDS = ("detail_info", "option_info", "unique_option_info", "diag_info")
 _LIST_LOAD = load_only(
     Vehicle.id,
     Vehicle.source_id,
@@ -137,11 +139,13 @@ def _vehicle_public(v: Vehicle, *, include_text: bool = True) -> dict:
         "car_cc": v.car_cc,
         "car_type": v.car_type,
         "car_seat": v.car_seat,
+        "inspected_at": v.inspected_at.date().isoformat() if v.inspected_at else None,
         "price_unit": "만원",
     }
     if include_text:
         payload["detail_info"] = v.detail_info
         payload["option_info"] = v.option_info
+        payload["unique_option_info"] = v.unique_option_info
         payload["diag_info"] = v.diag_info
     return payload
 

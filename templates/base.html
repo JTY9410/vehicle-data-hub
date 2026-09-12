@@ -53,11 +53,11 @@
         </span>
         <span class="side-rail-label">DB</span>
       </a>
-      <a href="{{ url_for('admin.api_keys') }}" class="side-rail-item {% if ep and 'api_keys' in ep %}active{% endif %}" title="API 키">
+      <a href="{{ url_for('admin.api_keys') }}" class="side-rail-item {% if ep and ('api_keys' in ep or 'settings' in ep) %}active{% endif %}" title="관리자">
         <span class="side-rail-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="12" r="3"/><path d="M11 12h9"/><path d="M17 12v2"/><path d="M20 12v3"/></svg>
         </span>
-        <span class="side-rail-label">API</span>
+        <span class="side-rail-label">관리자</span>
       </a>
     </nav>
     <div class="side-rail-footer">

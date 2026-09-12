@@ -18,7 +18,7 @@
 <div class="alert alert-warning">Vercel은 실행 시간 제한이 있습니다. 전량 동기화는 로컬 Docker에서 <code>flask import-crawl</code>로 실행하세요.</div>
 {% endif %}
 {% if not crawl_configured %}
-<div class="alert alert-warning"><code>CRAWL_API_KEY</code>가 없습니다. <code>.env</code>에 크롤 API 키를 넣은 뒤 다시 시도하세요.</div>
+<div class="alert alert-warning">크롤 API 키가 없습니다. <a href="{{ url_for('admin.api_keys') }}">관리자 설정</a>에서 키를 저장하세요.</div>
 {% endif %}
 <div class="glass-card p-3 mb-4 small">
   <strong>저장 컬럼:</strong>

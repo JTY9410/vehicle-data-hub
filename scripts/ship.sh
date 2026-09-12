@@ -37,7 +37,7 @@ fi
 
 echo "== docker =="
 if docker info >/dev/null 2>&1; then
-  docker compose --env-file .env -f docker-compose.yml -f docker-compose.supabase.yml up -d --build web
+  docker compose --env-file .env -f docker-compose.yml -f docker-compose.supabase.yml up -d --build web scheduler
   for i in 1 2 3 4 5 6 7 8 9 10; do
     body=$(curl -4 -sS -m 5 http://127.0.0.1:8001/healthz 2>/dev/null || true)
     echo "health $i $body"

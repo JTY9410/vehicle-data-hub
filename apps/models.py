@@ -58,6 +58,8 @@ class Vehicle(db.Model):
     car_seat: Mapped[str | None] = mapped_column(String(32))
     detail_info: Mapped[str | None] = mapped_column(Text)
     option_info: Mapped[str | None] = mapped_column(Text)
+    unique_option_info: Mapped[str | None] = mapped_column(Text)
+    inspected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     diag_info: Mapped[str | None] = mapped_column(Text)
     url_link: Mapped[str | None] = mapped_column(Text)
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -125,6 +127,16 @@ class ApiKey(db.Model):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AppSetting(db.Model):
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
 
 
 class ImportJob(db.Model):

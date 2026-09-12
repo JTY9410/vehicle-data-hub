@@ -41,5 +41,16 @@ services:
       timeout: 5s
       retries: 10
 
+  scheduler:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://vehicle:vehicle@db:5432/vehicle
+    entrypoint: ["python", "-m", "apps.scheduler"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:
