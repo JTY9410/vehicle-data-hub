@@ -228,6 +228,34 @@ def test_consume_queued_collect_imports_and_clears_flag(app):
         assert get_setting(CRAWL_COLLECT_NOW) is None
 
 
+def test_stale_running_job_is_released_so_queue_can_run(app):
+    from datetime import timedelta
+
+    from apps.models import utcnow
+
+    with app.app_context():
+        db.session.add(
+            ImportJob(
+                source="web",
+                filename="manual",
+                status="running",
+                processed_rows=0,
+                started_at=utcnow() - timedelta(minutes=10),
+            )
+        )
+        db.session.commit()
+        set_setting(CRAWL_COLLECT_NOW, "1")
+        job = consume_queued_collect(
+            fetch_rows=lambda: [_item(id=8, site_id="q2", car_no="12가8002", car_price="1300")]
+        )
+        assert job is not None
+        assert job.status == "completed"
+        stale = db.session.execute(
+            db.select(ImportJob).where(ImportJob.filename == "manual")
+        ).scalar_one()
+        assert stale.status == "failed"
+
+
 def test_import_from_crawl_refuses_second_running_job(app):
     with app.app_context():
         db.session.add(

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from datetime import timezone
+
 from apps.extensions import db
-from apps.models import ImportJob
+from apps.models import ImportJob, utcnow
 from apps.services.crawl_client import DEFAULT_LIMIT, iter_crawling_rows
 from apps.services.import_csv import import_row_dicts
 from apps.services.settings import CRAWL_COLLECT_NOW, crawl_credentials, get_setting, set_setting
 
 PAGE_DELAY_SECONDS = 1.0
+STALE_IDLE_SECONDS = 180
+STALE_MAX_SECONDS = 3 * 3600
 
 
 def item_to_row(item: dict) -> dict:
@@ -20,7 +24,30 @@ def item_to_row(item: dict) -> dict:
     return row
 
 
+def fail_stale_running_jobs() -> int:
+    now = utcnow()
+    rows = db.session.execute(
+        db.select(ImportJob).where(ImportJob.status == "running")
+    ).scalars().all()
+    expired = 0
+    for job in rows:
+        started = job.started_at or now
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        age = (now - started).total_seconds()
+        idle = (job.processed_rows or 0) == 0
+        if (idle and age > STALE_IDLE_SECONDS) or age > STALE_MAX_SECONDS:
+            job.status = "failed"
+            job.error_message = "수집이 중단되어 만료했습니다."
+            job.finished_at = now
+            expired += 1
+    if expired:
+        db.session.commit()
+    return expired
+
+
 def find_running_job() -> ImportJob | None:
+    fail_stale_running_jobs()
     return db.session.execute(
         db.select(ImportJob).where(ImportJob.status == "running").order_by(ImportJob.id.desc())
     ).scalars().first()
