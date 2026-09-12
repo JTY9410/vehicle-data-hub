@@ -155,11 +155,16 @@ def _flush_chunk(job: ImportJob, pending: list[dict]) -> None:
     db.session.commit()
 
 
-def import_csv_file(path: str | Path, source: str, filename: str | None = None) -> ImportJob:
-    path = Path(path)
+def import_row_dicts(
+    rows,
+    source: str,
+    filename: str,
+    *,
+    replace: bool = False,
+) -> ImportJob:
     job = ImportJob(
         source=source,
-        filename=filename or path.name,
+        filename=filename,
         status="running",
         started_at=utcnow(),
     )
@@ -173,40 +178,41 @@ def import_csv_file(path: str | Path, source: str, filename: str | None = None) 
             db.session.commit()
         except Exception:  # noqa: BLE001
             db.session.rollback()
-        with path.open("r", encoding="utf-8-sig", newline="") as fh:
-            reader = csv.DictReader(fh)
-            pending: list[dict] = []
-            for row in reader:
-                job.total_rows += 1
-                job.processed_rows += 1
-                site_type = (row.get("site_type") or "").strip()
-                site_id = str(row.get("site_id") or "").strip()
-                car_no = row.get("car_no")
-                reject, _reason = should_reject_row(
-                    car_no, row.get("car_price"), site_type, site_id
-                )
-                if reject:
-                    job.rejected_rows += 1
-                    if job.processed_rows % CHUNK_SIZE == 0:
-                        db.session.commit()
-                    continue
+        if replace:
+            db.session.execute(db.delete(Vehicle))
+            db.session.commit()
+        pending: list[dict] = []
+        for row in rows:
+            job.total_rows += 1
+            job.processed_rows += 1
+            site_type = (row.get("site_type") or "").strip()
+            site_id = str(row.get("site_id") or "").strip()
+            car_no = row.get("car_no")
+            reject, _reason = should_reject_row(
+                car_no, row.get("car_price"), site_type, site_id
+            )
+            if reject:
+                job.rejected_rows += 1
+                if job.processed_rows % CHUNK_SIZE == 0:
+                    db.session.commit()
+                continue
 
-                price = parse_price_manwon(row.get("car_price"))
-                assert price is not None
-                pending.append(
-                    {
-                        "site_type": site_type,
-                        "site_id": site_id,
-                        "row": row,
-                        "scraped_at": csv_row_saved_at(row),
-                        "price": price,
-                    }
-                )
-                if len(pending) >= CHUNK_SIZE:
-                    _flush_chunk(job, pending)
-                    pending = []
+            price = parse_price_manwon(row.get("car_price"))
+            assert price is not None
+            pending.append(
+                {
+                    "site_type": site_type,
+                    "site_id": site_id,
+                    "row": row,
+                    "scraped_at": csv_row_saved_at(row),
+                    "price": price,
+                }
+            )
+            if len(pending) >= CHUNK_SIZE:
+                _flush_chunk(job, pending)
+                pending = []
 
-            _flush_chunk(job, pending)
+        _flush_chunk(job, pending)
 
         job.status = "completed"
         job.finished_at = utcnow()
@@ -222,3 +228,13 @@ def import_csv_file(path: str | Path, source: str, filename: str | None = None) 
         raise
 
     return job
+
+
+def import_csv_file(path: str | Path, source: str, filename: str | None = None) -> ImportJob:
+    path = Path(path)
+    with path.open("r", encoding="utf-8-sig", newline="") as fh:
+        return import_row_dicts(
+            csv.DictReader(fh),
+            source,
+            filename or path.name,
+        )

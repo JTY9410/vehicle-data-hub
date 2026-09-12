@@ -102,6 +102,10 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "wecar")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1004wecar")
+    CRAWL_API_URL = os.environ.get(
+        "CRAWL_API_URL", "https://crawl.wecarmobility.co.kr"
+    )
+    CRAWL_API_KEY = os.environ.get("CRAWL_API_KEY", "")
     # 목록 per_page 상한 (include=text 포함). 필요 시 API_PER_PAGE_MAX 환경변수로 덮어씀
     API_PER_PAGE_MAX = int(os.environ.get("API_PER_PAGE_MAX", "100"))
     API_PER_PAGE_MAX_WITH_TEXT = int(

@@ -122,8 +122,8 @@ print(r.json()["items"])</code></pre>
 });
 const data = await res.json();</code></pre>
 
-  <h2 class="h4 mt-4">7. 업로드 CSV 컬럼</h2>
-  <p class="small mb-2"><code>site_type</code>+<code>site_id</code> 기준 upsert. 렌트(하/허/호)·가격 ≤0 또는 ≥9999는 제외. 대용량은 Docker <code>flask import-csv</code>.</p>
+  <h2 class="h4 mt-4">7. 원본 크롤 필드</h2>
+  <p class="small mb-2"><code>site_type</code>+<code>site_id</code> 기준 저장. 렌트(하/허/호)·가격 ≤0 또는 ≥9999는 제외. 전량 동기화는 Docker <code>flask import-crawl</code>.</p>
   <pre class="bg-light p-3 rounded"><code>id, car_import_yn, site_type, site_id, car_no, car_year, car_km, car_price,
 car_maker, car_model, car_submodel, car_grade, car_subgrade, car_fuel,
 car_mission, car_color, car_location, detail_info, option_info, diag_info,

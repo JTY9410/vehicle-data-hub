@@ -41,11 +41,11 @@
         </span>
         <span class="side-rail-label">데이터</span>
       </a>
-      <a href="{{ url_for('admin.upload') }}" class="side-rail-item {% if ep and 'upload' in ep %}active{% endif %}" title="업로드">
+      <a href="{{ url_for('admin.upload') }}" class="side-rail-item {% if ep and 'upload' in ep %}active{% endif %}" title="동기화">
         <span class="side-rail-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>
         </span>
-        <span class="side-rail-label">업로드</span>
+        <span class="side-rail-label">동기화</span>
       </a>
       <a href="{{ url_for('admin.db_stats') }}" class="side-rail-item {% if ep == 'admin.db_stats' %}active{% endif %}" title="DB 비용">
         <span class="side-rail-icon" aria-hidden="true">
@@ -84,7 +84,7 @@
         </a>
         <div class="d-flex gap-2 d-lg-none">
           <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.vehicles') }}">데이터</a>
-          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.upload') }}">업로드</a>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.upload') }}">동기화</a>
         </div>
       </div>
     </header>

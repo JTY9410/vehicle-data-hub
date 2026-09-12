@@ -1,4 +1,3 @@
-from pathlib import Path
 import os
 
 from flask import (
@@ -14,7 +13,6 @@ from flask import (
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy.orm import load_only
 from werkzeug.security import check_password_hash
-from werkzeug.utils import secure_filename
 
 from apps.extensions import db
 from apps.models import (
@@ -36,7 +34,8 @@ from apps.services.db_stats import (
     vehicle_list_order,
 )
 from apps.services.encar_fuel import ENCAR_FUELS, normalize_fuel
-from apps.services.import_csv import import_csv_file, parse_date_bound
+from apps.services.import_crawl import import_from_crawl
+from apps.services.import_csv import parse_date_bound
 
 bp = Blueprint("admin", __name__)
 
@@ -394,31 +393,30 @@ def code_gdetails():
 def upload():
     job = None
     on_vercel = bool(os.environ.get("VERCEL"))
+    crawl_configured = bool((current_app.config.get("CRAWL_API_KEY") or "").strip())
     if request.method == "POST":
         if on_vercel:
             flash(
-                "Vercel은 요청 4.5MB 제한이 있어 대용량 CSV를 올릴 수 없습니다. "
-                "로컬 Docker에서 flask import-csv 로 적재하세요.",
+                "Vercel 요청 시간 제한으로 전량 동기화는 끊길 수 있습니다. "
+                "로컬 Docker에서 flask import-crawl 을 사용하세요.",
                 "warning",
             )
             return redirect(url_for("admin.upload"))
-        file = request.files.get("file")
-        if not file or not file.filename:
-            flash("CSV 파일을 선택하세요.", "warning")
+        if not crawl_configured:
+            flash("CRAWL_API_KEY가 설정되지 않았습니다.", "warning")
             return redirect(url_for("admin.upload"))
-        filename = secure_filename(file.filename)
-        if not filename.lower().endswith(".csv"):
-            flash("CSV 파일만 업로드할 수 있습니다.", "warning")
-            return redirect(url_for("admin.upload"))
-        dest = Path(current_app.config["UPLOAD_FOLDER"]) / filename
-        file.save(dest)
-        job = import_csv_file(dest, source="web", filename=filename)
+        job = import_from_crawl(source="web")
         flash(
-            f"적재 완료: 저장 {job.saved_rows}, 거부 {job.rejected_rows}, 스킵 {job.skipped_rows}",
+            f"동기화 완료: 저장 {job.saved_rows}, 거부 {job.rejected_rows}, 스킵 {job.skipped_rows}",
             "success",
         )
         return redirect(url_for("admin.upload_status", job_id=job.id))
-    return render_template("upload.html", job=job, on_vercel=on_vercel)
+    return render_template(
+        "upload.html",
+        job=job,
+        on_vercel=on_vercel,
+        crawl_configured=crawl_configured,
+    )
 
 
 @bp.get("/upload/<int:job_id>")

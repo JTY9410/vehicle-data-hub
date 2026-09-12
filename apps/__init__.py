@@ -105,6 +105,7 @@ def _register_cli(app):
     from apps.services.encar_fuel import remap_vehicle_fuels
     from apps.services.encar_seed import seed_encar_codes
     from apps.services.db_stats import hot_queries
+    from apps.services.import_crawl import import_from_crawl
     from apps.services.import_csv import import_csv_file
 
     @app.cli.command("seed-admin")
@@ -154,6 +155,14 @@ def _register_cli(app):
     @click.argument("path")
     def import_csv_cmd(path):
         job = import_csv_file(path, source="cli")
+        click.echo(
+            f"status={job.status} saved={job.saved_rows} "
+            f"rejected={job.rejected_rows} skipped={job.skipped_rows}"
+        )
+
+    @app.cli.command("import-crawl")
+    def import_crawl_cmd():
+        job = import_from_crawl(source="cli")
         click.echo(
             f"status={job.status} saved={job.saved_rows} "
             f"rejected={job.rejected_rows} skipped={job.skipped_rows}"

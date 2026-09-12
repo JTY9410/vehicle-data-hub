@@ -1,6 +1,6 @@
 # Vehicle Data Hub
 
-Flask + PostgreSQL CSV 매물 허브. 운영 런타임은 **Docker Compose** 권장.
+Flask + PostgreSQL 매물 허브. 운영 런타임은 **Docker Compose** 권장.
 
 ## 로컬 / Docker
 
@@ -40,8 +40,8 @@ docker compose up -d --build
 
 짧은 도메인(`vehicle-data-hub.vercel.app`)을 이 앱에 쓰려면 Vercel 대시보드에서 해당 Next.js 프로젝트를 삭제하거나 도메인을 해제한 뒤, 이 프로젝트에 도메인을 다시 연결해야 합니다.
 
-Vercel은 서버리스라 **대용량 CSV 업로드**는 Docker가 적합합니다.  
-환경변수: `DATABASE_URL`(Supabase pooler), `SECRET_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`
+Vercel은 서버리스라 **전량 크롤 동기화**는 Docker가 적합합니다.  
+환경변수: `DATABASE_URL`(Supabase pooler), `SECRET_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `CRAWL_API_KEY`
 
 ## Supabase (선택 · 검토)
 
@@ -75,7 +75,7 @@ Vercel은 서버리스라 **대용량 CSV 업로드**는 Docker가 적합합니�
 1. Supabase 프로젝트에서 Database → Connection string 복사  
 2. `postgresql://...` → 앱이 `postgresql+psycopg://`로 정규화 (`config.py`)  
 3. `flask db upgrade`로 마이그레이션 적용 (또는 `migrate_to_supabase.sh`)  
-4. 필요 시 CSV 재적재로 데이터 보완  
+4. 필요 시 `flask import-crawl`로 데이터 재적재  
 5. Vercel·Compose 환경변수에 `DATABASE_URL`·`SECRET_KEY` 설정  
 
 주의: ~20만 행·CSV 청크 upsert는 **Docker + Postgres(또는 Supabase Direct/Session)** 가 본체이고, Vercel은 조회 API용으로 두는 편이 안전합니다.

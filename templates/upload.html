@@ -1,39 +1,42 @@
 <!--
   [UI Flow]
   1. Auth required
-  2. Data: POST /upload multipart → ImportJob
-  3. States: form | progress result
+  2. Data: POST /upload → crawl API 전량 교체 ImportJob
+  3. States: form | missing key | vercel blocked | progress result
   4. Actions → dashboard / vehicles
 -->
 {% extends "base.html" %}
-{% block title %}CSV 업로드 · Vehicle Hub{% endblock %}
+{% block title %}데이터 동기화 · Vehicle Hub{% endblock %}
 {% block content %}
 <p class="section-kicker mb-1">IMPORT</p>
-<h1 class="page-title">CSV 업로드</h1>
-<p class="page-subtitle">렌트카(하/허/호)·비정상 가격(≤0 또는 ≥9999)은 저장되지 않습니다. 가격 단위: 만원. CSV <code>created_at</code>은 저장일자로 DB에 보관됩니다.</p>
+<h1 class="page-title">크롤 데이터 동기화</h1>
+<p class="page-subtitle">
+  <a href="https://crawl.wecarmobility.co.kr/docs#/" target="_blank" rel="noopener">crawl API</a>에서 전량을 가져와 기존 차량 데이터를 삭제한 뒤 다시 저장합니다.
+  렌트카 번호(하/허/호)·가격 ≤0 또는 ≥9999는 저장하지 않습니다. 가격 단위: 만원.
+</p>
 {% if on_vercel %}
-<div class="alert alert-warning">Vercel 요청 한도는 4.5MB입니다. 대용량 CSV는 로컬 Docker에서 <code>flask import-csv</code>로 적재하세요.</div>
+<div class="alert alert-warning">Vercel은 실행 시간 제한이 있습니다. 전량 동기화는 로컬 Docker에서 <code>flask import-crawl</code>로 실행하세요.</div>
+{% endif %}
+{% if not crawl_configured %}
+<div class="alert alert-warning"><code>CRAWL_API_KEY</code>가 없습니다. <code>.env</code>에 크롤 API 키를 넣은 뒤 다시 시도하세요.</div>
 {% endif %}
 <div class="glass-card p-3 mb-4 small">
-  <strong>반영 컬럼:</strong>
-  <code>id, car_import_yn, site_type, site_id, car_no, car_year, car_km, car_price, car_maker, car_model, car_submodel, car_grade, car_subgrade, car_fuel, car_mission, car_color, car_location, detail_info, option_info, diag_info, url_link, created_at, car_cc, car_type, car_seat</code>
+  <strong>저장 컬럼:</strong>
+  <code>id, car_import_yn, site_type, site_id, car_no, car_year, car_km, car_price, car_maker, car_model, car_submodel, car_grade, car_subgrade, car_fuel, car_mission, car_color, car_location, detail_info, option_info, unique_option_info, diag_info, url_link, created_at, car_cc, car_type, car_seat</code>
 </div>
 
 <div class="glass-card p-4">
-  <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.upload') }}" id="csv-upload-form">
+  <form method="post" action="{{ url_for('admin.upload') }}" id="crawl-sync-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="mb-3">
-      <label class="form-label small fw-semibold" for="file">CSV 파일</label>
-      <input class="form-control" type="file" id="file" name="file" accept=".csv" required>
-    </div>
-    <button class="btn btn-primary" type="submit"{% if on_vercel %} disabled{% endif %}>업로드 및 적재</button>
+    <p class="small text-muted mb-3">실행하면 현재 저장된 차량을 모두 지우고 API 데이터를 다시 넣습니다. API 키·관리자 계정은 유지됩니다.</p>
+    <button class="btn btn-primary" type="submit"{% if on_vercel or not crawl_configured %} disabled{% endif %}>기존 데이터 삭제 후 다시 가져오기</button>
     <button type="button" class="btn btn-outline-primary ms-2" id="openResetDialog" aria-haspopup="dialog" aria-controls="resetDataDialog">
-      업로드 데이터 초기화
+      데이터만 초기화
     </button>
   </form>
-  {% if on_vercel %}
+  {% if on_vercel or not crawl_configured %}
   <script>
-  document.getElementById("csv-upload-form")?.addEventListener("submit", (e) => {
+  document.getElementById("crawl-sync-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
   });
   </script>

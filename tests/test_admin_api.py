@@ -1,11 +1,7 @@
-from pathlib import Path
-
 from apps.cli import seed_admin_user
 from apps.extensions import db
 from apps.models import Vehicle, VehicleMaker, VehicleModel
 from apps.services.api_keys import create_api_key
-
-FIXTURE = Path(__file__).parent / "fixtures" / "sample.csv"
 
 
 def test_dashboard_requires_login(client):
@@ -41,15 +37,9 @@ def test_login_and_upload(client, app):
         follow_redirects=True,
     )
     assert r.status_code == 200
-    with FIXTURE.open("rb") as fh:
-        r = client.post(
-            "/upload",
-            data={"file": (fh, "sample.csv")},
-            content_type="multipart/form-data",
-            follow_redirects=True,
-        )
-    assert r.status_code == 200
-    assert b"saved" in r.data.lower() or "저장".encode() in r.data or b"completed" in r.data or "작업".encode() in r.data
+    page = client.get("/upload")
+    assert page.status_code == 200
+    assert "가져오기".encode() in page.data or "동기화".encode() in page.data
 
 
 def test_vehicles_search_by_maker_model_subgrade(client, app):
