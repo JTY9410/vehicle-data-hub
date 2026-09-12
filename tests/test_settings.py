@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from apps.cli import seed_admin_user
 from apps.extensions import db
 from apps.models import Vehicle
-from apps.services.import_crawl import import_from_crawl, item_to_row
+from apps.services.import_crawl import consume_queued_collect, import_from_crawl, item_to_row
 from apps.services.scheduler import next_sunday_midnight_kst
 from apps.services.settings import crawl_credentials, crawl_key_configured, set_setting
 
@@ -138,7 +138,11 @@ def test_settings_page_saves_keys_and_manual_collect(client, app, monkeypatch):
         follow_redirects=True,
     )
     assert collected.status_code == 200
+    assert "예약".encode() in collected.data
     with app.app_context():
+        job = consume_queued_collect()
+        assert job is not None
+        assert job.status == "completed"
         row = db.session.execute(
             db.select(Vehicle).filter_by(site_id="manual-1")
         ).scalar_one()

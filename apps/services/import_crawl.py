@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from apps.extensions import db
 from apps.models import ImportJob
 from apps.services.crawl_client import DEFAULT_LIMIT, iter_crawling_rows
 from apps.services.import_csv import import_row_dicts
-from apps.services.settings import crawl_credentials
+from apps.services.settings import CRAWL_COLLECT_NOW, crawl_credentials, get_setting, set_setting
+
+PAGE_DELAY_SECONDS = 1.0
 
 
 def item_to_row(item: dict) -> dict:
@@ -17,6 +20,29 @@ def item_to_row(item: dict) -> dict:
     return row
 
 
+def find_running_job() -> ImportJob | None:
+    return db.session.execute(
+        db.select(ImportJob).where(ImportJob.status == "running").order_by(ImportJob.id.desc())
+    ).scalars().first()
+
+
+def request_manual_collect() -> ImportJob | None:
+    running = find_running_job()
+    if running:
+        return running
+    set_setting(CRAWL_COLLECT_NOW, "1")
+    return None
+
+
+def consume_queued_collect(**kwargs):
+    if find_running_job():
+        return None
+    if not get_setting(CRAWL_COLLECT_NOW):
+        return None
+    set_setting(CRAWL_COLLECT_NOW, "")
+    return import_from_crawl(source="web", filename="queued", **kwargs)
+
+
 def import_from_crawl(
     *,
     source: str,
@@ -24,6 +50,9 @@ def import_from_crawl(
     replace: bool = True,
     fetch_rows=None,
 ) -> ImportJob:
+    running = find_running_job()
+    if running:
+        raise RuntimeError(f"이미 수집 중 (작업 #{running.id})")
     if fetch_rows is None:
         base_url, api_key = crawl_credentials()
         if not api_key:
@@ -34,6 +63,7 @@ def import_from_crawl(
                 base_url=base_url,
                 api_key=api_key,
                 limit=DEFAULT_LIMIT,
+                page_delay=PAGE_DELAY_SECONDS,
             )
 
     return import_row_dicts(

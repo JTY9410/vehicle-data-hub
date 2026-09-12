@@ -38,7 +38,7 @@
     </div>
   </form>
   <hr class="my-4">
-  <p class="small text-muted mb-2">자동 수집: 매주 일요일 저녁 12시 (월요일 00:00 KST). 다음 예정 {{ next_collect_at.strftime('%Y-%m-%d %H:%M %Z') }}.</p>
+  <p class="small text-muted mb-2">자동 수집: 매주 일요일 저녁 12시 (월요일 00:00 KST). 다음 예정 {{ next_collect_at.strftime('%Y-%m-%d %H:%M %Z') }}. 수기 수집은 예약 후 스케줄러가 실행하며, 크롤 API 429면 1~2분 기다렸다가 다시 요청합니다.</p>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="collect">

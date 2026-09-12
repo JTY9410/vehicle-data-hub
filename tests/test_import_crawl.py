@@ -1,7 +1,15 @@
 from apps.extensions import db
 from apps.models import Vehicle
-from apps.services.crawl_client import _get_with_retry, iter_crawling_rows
-from apps.services.import_crawl import import_from_crawl
+from apps.models import ImportJob
+from apps.services.crawl_client import (
+    CrawlHttpError,
+    _get_with_retry,
+    iter_crawling_rows,
+    parse_retry_after,
+    retry_wait_seconds,
+)
+from apps.services.import_crawl import consume_queued_collect, import_from_crawl
+from apps.services.settings import CRAWL_COLLECT_NOW, get_setting, set_setting
 
 
 def _item(**overrides):
@@ -59,16 +67,30 @@ def test_iter_crawling_rows_paginates_by_id_and_dedupes():
             }
         return {"datas": [], "total": 3, "limit": 2, "offset": 99}
 
+    sleeps = []
     rows = list(
         iter_crawling_rows(
             base_url="https://crawl.example.test",
             api_key="k",
             limit=2,
             http_get=http_get,
+            page_delay=1,
+            sleep=sleeps.append,
         )
     )
     assert [r["id"] for r in rows] == [1, 2, 3]
     assert any("offset=2" in u for u in calls)
+    assert sleeps[0] == 1
+    assert all(s == 1 for s in sleeps)
+
+
+def test_parse_retry_after_and_default_wait():
+    assert parse_retry_after({"Retry-After": "15"}) == 15
+    assert parse_retry_after({}) is None
+    assert retry_wait_seconds(RuntimeError("crawl API HTTP 429: x"), attempt=0) == 60
+    assert retry_wait_seconds(RuntimeError("crawl API HTTP 429: x"), attempt=1) == 120
+    err = CrawlHttpError(429, "slow", retry_after=7)
+    assert retry_wait_seconds(err, attempt=0) == 7
 
 
 def test_get_with_retry_recovers_from_429():
@@ -77,14 +99,14 @@ def test_get_with_retry_recovers_from_429():
     def flaky(_url, _headers):
         calls["n"] += 1
         if calls["n"] < 3:
-            raise RuntimeError("crawl API HTTP 429: Too many requests")
+            raise CrawlHttpError(429, "Too many requests", retry_after=None)
         return {"ok": True}
 
     sleeps = []
     page = _get_with_retry(flaky, "https://x", {}, sleep=sleeps.append)
     assert page == {"ok": True}
     assert calls["n"] == 3
-    assert sleeps == [1, 2]
+    assert sleeps == [60, 120]
 
 
 def test_import_from_crawl_replaces_all_and_rejects_rental_and_9999(app):
@@ -170,26 +192,64 @@ def test_replace_keeps_existing_rows_if_crawl_fetch_fails(app):
         assert left[0].site_id == "keep-me"
 
 
-def test_collect_post_shows_error_instead_of_500(client, app, monkeypatch):
+def test_collect_post_queues_without_hitting_crawl_api(client, app, monkeypatch):
     from apps.cli import seed_admin_user
 
+    called = {"n": 0}
+
     def boom(**_kwargs):
-        raise RuntimeError("crawl API HTTP 429: Too many requests")
+        called["n"] += 1
+        raise RuntimeError("should not call crawl API from the web request")
 
     monkeypatch.setattr("apps.services.import_crawl.iter_crawling_rows", boom)
     with app.app_context():
         seed_admin_user()
-        from apps.services.settings import set_setting
-
         set_setting("crawl_api_key", "k")
 
     client.post("/login", data={"username": "wecar", "password": "1004wecar"})
     r = client.post("/settings", data={"action": "collect"}, follow_redirects=True)
     assert r.status_code == 200
-    assert "429".encode() in r.data or "수집 실패".encode() in r.data or "Too many".encode() in r.data
+    assert called["n"] == 0
+    body = r.data.decode()
+    assert "예약" in body or "대기" in body
+    with app.app_context():
+        assert get_setting(CRAWL_COLLECT_NOW) == "1"
 
 
-def test_upload_post_syncs_from_crawl(client, app, monkeypatch):
+def test_consume_queued_collect_imports_and_clears_flag(app):
+    with app.app_context():
+        set_setting(CRAWL_COLLECT_NOW, "1")
+        job = consume_queued_collect(
+            fetch_rows=lambda: [_item(id=8, site_id="q1", car_no="12가8001", car_price="1300")]
+        )
+        assert job is not None
+        assert job.status == "completed"
+        assert job.saved_rows == 1
+        assert get_setting(CRAWL_COLLECT_NOW) is None
+
+
+def test_import_from_crawl_refuses_second_running_job(app):
+    with app.app_context():
+        db.session.add(
+            ImportJob(
+                source="web",
+                filename="manual",
+                status="running",
+            )
+        )
+        db.session.commit()
+        try:
+            import_from_crawl(
+                source="cli",
+                fetch_rows=lambda: [_item(id=9, site_id="x", car_no="12가9001", car_price="1400")],
+            )
+        except RuntimeError as exc:
+            assert "이미 수집" in str(exc)
+        else:
+            raise AssertionError("expected running lock")
+
+
+def test_upload_post_queues_then_scheduler_syncs(client, app, monkeypatch):
     from apps.cli import seed_admin_user
 
     items = [_item(id=7, site_id="web-1", car_no="12가7777", car_price="2100")]
@@ -208,9 +268,10 @@ def test_upload_post_syncs_from_crawl(client, app, monkeypatch):
     client.post("/login", data={"username": "wecar", "password": "1004wecar"})
     r = client.post("/upload", follow_redirects=True)
     assert r.status_code == 200
-    assert "저장".encode() in r.data or b"completed" in r.data or "작업".encode() in r.data
-
     with app.app_context():
+        assert get_setting(CRAWL_COLLECT_NOW) == "1"
+        job = consume_queued_collect()
+        assert job.status == "completed"
         cars = db.session.execute(db.select(Vehicle)).scalars().all()
         assert len(cars) == 1
         assert cars[0].site_id == "web-1"

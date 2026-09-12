@@ -33,7 +33,7 @@ from apps.services.db_stats import (
     vehicle_list_order,
 )
 from apps.services.encar_fuel import ENCAR_FUELS, normalize_fuel
-from apps.services.import_crawl import import_from_crawl
+from apps.services.import_crawl import request_manual_collect
 from apps.services.import_csv import parse_date_bound
 from apps.services.scheduler import next_sunday_midnight_kst
 from apps.services.settings import (
@@ -413,16 +413,15 @@ def upload():
         if not crawl_configured:
             flash("CRAWL_API_KEY가 설정되지 않았습니다.", "warning")
             return redirect(url_for("admin.upload"))
-        try:
-            job = import_from_crawl(source="web")
-        except Exception as exc:  # noqa: BLE001
-            flash(f"수집 실패: {exc}", "danger")
-            return redirect(url_for("admin.upload"))
+        running = request_manual_collect()
+        if running:
+            flash("이미 수집이 진행 중입니다.", "warning")
+            return redirect(url_for("admin.upload_status", job_id=running.id))
         flash(
-            f"동기화 완료: 저장 {job.saved_rows}, 거부 {job.rejected_rows}, 스킵 {job.skipped_rows}",
+            "수집을 예약했습니다. 스케줄러가 크롤 API 한도를 기다린 뒤 시작합니다.",
             "success",
         )
-        return redirect(url_for("admin.upload_status", job_id=job.id))
+        return redirect(url_for("admin.dashboard"))
     return render_template(
         "upload.html",
         job=job,
@@ -510,16 +509,15 @@ def api_keys():
             if not crawl_key_configured():
                 flash("크롤 API 키를 먼저 저장하세요.", "warning")
                 return redirect(url_for("admin.api_keys"))
-            try:
-                job = import_from_crawl(source="web", filename="manual")
-            except Exception as exc:  # noqa: BLE001
-                flash(f"수집 실패: {exc}", "danger")
-                return redirect(url_for("admin.api_keys"))
+            running = request_manual_collect()
+            if running:
+                flash("이미 수집이 진행 중입니다.", "warning")
+                return redirect(url_for("admin.upload_status", job_id=running.id))
             flash(
-                f"수집 완료: 저장 {job.saved_rows}, 거부 {job.rejected_rows}, 스킵 {job.skipped_rows}",
+                "수집을 예약했습니다. 스케줄러가 크롤 API 한도를 기다린 뒤 시작합니다.",
                 "success",
             )
-            return redirect(url_for("admin.upload_status", job_id=job.id))
+            return redirect(url_for("admin.dashboard"))
         name = (request.form.get("name") or "").strip()
         if not name:
             flash("키 이름을 입력하세요.", "warning")
