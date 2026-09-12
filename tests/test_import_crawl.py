@@ -104,6 +104,33 @@ def test_import_from_crawl_replaces_all_and_rejects_rental_and_9999(app):
         assert kept.car_seat == "5"
 
 
+def test_replace_import_bulk_inserts_without_keeping_stale_rows(app):
+    with app.app_context():
+        db.session.add_all(
+            [
+                Vehicle(site_type="encar", site_id="stale-a", car_price=10),
+                Vehicle(site_type="kb", site_id="stale-b", car_price=20),
+            ]
+        )
+        db.session.commit()
+        job = import_from_crawl(
+            source="cli",
+            fetch_rows=lambda: [
+                _item(id=11, site_id="n1", car_no="12가1001", car_price="1100"),
+                _item(id=12, site_id="n2", car_no="12가1002", car_price="1200"),
+                _item(id=12, site_id="n2", car_no="12가1002", car_price="1250"),
+            ],
+            replace=True,
+        )
+        assert job.status == "completed"
+        assert job.saved_rows == 2
+        ids = {
+            v.site_id: v.car_price
+            for v in db.session.execute(db.select(Vehicle)).scalars()
+        }
+        assert ids == {"n1": 1100, "n2": 1250}
+
+
 def test_upload_post_syncs_from_crawl(client, app, monkeypatch):
     from apps.cli import seed_admin_user
 

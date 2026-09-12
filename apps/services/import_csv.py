@@ -4,16 +4,17 @@ import csv
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 
-from sqlalchemy import text, tuple_
+from sqlalchemy import insert, text, tuple_
 
 from apps.extensions import db
 from apps.models import ImportJob, Vehicle, utcnow
-from apps.services.encar_codes import apply_codes_to_vehicle
+from apps.services.encar_codes import apply_codes_to_vehicle, get_code_index
 from apps.services.encar_fuel import infer_fuel
 from apps.services.encar_attrs import normalize_color, normalize_mission, normalize_type
 from apps.services.filters import parse_km, parse_price_manwon, should_reject_row
 
 CHUNK_SIZE = 1000
+REPLACE_CHUNK_SIZE = 2000
 
 # CSV 저장일자 컬럼 후보 (우선순위)
 _CSV_SAVED_AT_KEYS = ("created_at", "saved_at", "저장일자", "scraped_at")
@@ -92,7 +93,13 @@ def _clean(value: str | None) -> str | None:
     return s
 
 
-def _apply_row(vehicle: Vehicle, row: dict, scraped_at: datetime | None, price: int) -> None:
+def _apply_row(
+    vehicle: Vehicle,
+    row: dict,
+    scraped_at: datetime | None,
+    price: int,
+    index=None,
+) -> None:
     vehicle.source_id = _clean(row.get("id"))
     vehicle.car_no = _clean(row.get("car_no"))
     vehicle.car_year = _clean(row.get("car_year"))
@@ -119,7 +126,7 @@ def _apply_row(vehicle: Vehicle, row: dict, scraped_at: datetime | None, price: 
     vehicle.url_link = _clean(row.get("url_link"))
     vehicle.scraped_at = scraped_at
     vehicle.updated_at = utcnow()
-    apply_codes_to_vehicle(vehicle)
+    apply_codes_to_vehicle(vehicle, index=index)
 
 
 def _flush_chunk(job: ImportJob, pending: list[dict]) -> None:
@@ -157,6 +164,76 @@ def _flush_chunk(job: ImportJob, pending: list[dict]) -> None:
     db.session.commit()
 
 
+def _wipe_vehicles() -> None:
+    bind = db.session.get_bind()
+    dialect = getattr(getattr(bind, "dialect", None), "name", "")
+    if dialect == "postgresql":
+        db.session.execute(text("TRUNCATE TABLE vehicles RESTART IDENTITY"))
+    else:
+        db.session.execute(db.delete(Vehicle))
+    db.session.commit()
+
+
+def _vehicle_mapping(vehicle: Vehicle) -> dict:
+    now = utcnow()
+    return {
+        "source_id": vehicle.source_id,
+        "site_type": vehicle.site_type,
+        "site_id": vehicle.site_id,
+        "car_no": vehicle.car_no,
+        "car_year": vehicle.car_year,
+        "car_km": vehicle.car_km,
+        "car_price": vehicle.car_price,
+        "car_maker": vehicle.car_maker,
+        "car_model": vehicle.car_model,
+        "car_submodel": vehicle.car_submodel,
+        "car_grade": vehicle.car_grade,
+        "car_subgrade": vehicle.car_subgrade,
+        "car_fuel": vehicle.car_fuel,
+        "car_mission": vehicle.car_mission,
+        "car_color": vehicle.car_color,
+        "car_location": vehicle.car_location,
+        "car_import_yn": vehicle.car_import_yn,
+        "car_cc": vehicle.car_cc,
+        "car_type": vehicle.car_type,
+        "car_seat": vehicle.car_seat,
+        "detail_info": vehicle.detail_info,
+        "option_info": vehicle.option_info,
+        "unique_option_info": vehicle.unique_option_info,
+        "inspected_at": vehicle.inspected_at,
+        "diag_info": vehicle.diag_info,
+        "url_link": vehicle.url_link,
+        "scraped_at": vehicle.scraped_at,
+        "maker_no": vehicle.maker_no,
+        "model_no": vehicle.model_no,
+        "mdetail_no": vehicle.mdetail_no,
+        "grade_no": vehicle.grade_no,
+        "gdetail_no": vehicle.gdetail_no,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+def _bulk_insert(mappings: list[dict], job: ImportJob) -> None:
+    if not mappings:
+        return
+    db.session.execute(insert(Vehicle), mappings)
+    job.saved_rows += len(mappings)
+    db.session.commit()
+
+
+def _analyze_vehicles() -> None:
+    bind = db.session.get_bind()
+    dialect = getattr(getattr(bind, "dialect", None), "name", "")
+    if dialect != "postgresql":
+        return
+    try:
+        db.session.execute(text("ANALYZE vehicles"))
+        db.session.commit()
+    except Exception:  # noqa: BLE001
+        db.session.rollback()
+
+
 def import_row_dicts(
     rows,
     source: str,
@@ -181,40 +258,62 @@ def import_row_dicts(
         except Exception:  # noqa: BLE001
             db.session.rollback()
         if replace:
-            db.session.execute(db.delete(Vehicle))
-            db.session.commit()
-        pending: list[dict] = []
-        for row in rows:
-            job.total_rows += 1
-            job.processed_rows += 1
-            site_type = (row.get("site_type") or "").strip()
-            site_id = str(row.get("site_id") or "").strip()
-            car_no = row.get("car_no")
-            reject, _reason = should_reject_row(
-                car_no, row.get("car_price"), site_type, site_id
-            )
-            if reject:
-                job.rejected_rows += 1
-                if job.processed_rows % CHUNK_SIZE == 0:
-                    db.session.commit()
-                continue
+            _wipe_vehicles()
+            index = get_code_index()
+            pending: dict[tuple[str, str], dict] = {}
+            for row in rows:
+                job.total_rows += 1
+                job.processed_rows += 1
+                site_type = (row.get("site_type") or "").strip()
+                site_id = str(row.get("site_id") or "").strip()
+                reject, _reason = should_reject_row(
+                    row.get("car_no"), row.get("car_price"), site_type, site_id
+                )
+                if reject:
+                    job.rejected_rows += 1
+                    continue
+                price = parse_price_manwon(row.get("car_price"))
+                assert price is not None
+                vehicle = Vehicle(site_type=site_type, site_id=site_id)
+                _apply_row(vehicle, row, csv_row_saved_at(row), price, index=index)
+                pending[(site_type, site_id)] = _vehicle_mapping(vehicle)
+                if len(pending) >= REPLACE_CHUNK_SIZE:
+                    _bulk_insert(list(pending.values()), job)
+                    pending = {}
+            _bulk_insert(list(pending.values()), job)
+            _analyze_vehicles()
+        else:
+            pending_rows: list[dict] = []
+            for row in rows:
+                job.total_rows += 1
+                job.processed_rows += 1
+                site_type = (row.get("site_type") or "").strip()
+                site_id = str(row.get("site_id") or "").strip()
+                reject, _reason = should_reject_row(
+                    row.get("car_no"), row.get("car_price"), site_type, site_id
+                )
+                if reject:
+                    job.rejected_rows += 1
+                    if job.processed_rows % CHUNK_SIZE == 0:
+                        db.session.commit()
+                    continue
 
-            price = parse_price_manwon(row.get("car_price"))
-            assert price is not None
-            pending.append(
-                {
-                    "site_type": site_type,
-                    "site_id": site_id,
-                    "row": row,
-                    "scraped_at": csv_row_saved_at(row),
-                    "price": price,
-                }
-            )
-            if len(pending) >= CHUNK_SIZE:
-                _flush_chunk(job, pending)
-                pending = []
+                price = parse_price_manwon(row.get("car_price"))
+                assert price is not None
+                pending_rows.append(
+                    {
+                        "site_type": site_type,
+                        "site_id": site_id,
+                        "row": row,
+                        "scraped_at": csv_row_saved_at(row),
+                        "price": price,
+                    }
+                )
+                if len(pending_rows) >= CHUNK_SIZE:
+                    _flush_chunk(job, pending_rows)
+                    pending_rows = []
 
-        _flush_chunk(job, pending)
+            _flush_chunk(job, pending_rows)
 
         job.status = "completed"
         job.finished_at = utcnow()
