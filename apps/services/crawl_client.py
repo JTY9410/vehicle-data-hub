@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -19,6 +20,20 @@ def _default_http_get(url: str, headers: dict) -> dict:
         raise RuntimeError(f"crawl API 연결 실패: {exc.reason}") from exc
 
 
+def _get_with_retry(get, url: str, headers: dict, *, retries: int = 5, sleep=time.sleep):
+    last: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            return get(url, headers)
+        except RuntimeError as exc:
+            last = exc
+            if "HTTP 429" not in str(exc) or attempt >= retries:
+                raise
+            sleep(min(30, 2**attempt))
+    assert last is not None
+    raise last
+
+
 def iter_crawling_rows(
     *,
     base_url: str,
@@ -33,7 +48,7 @@ def iter_crawling_rows(
     headers = {"x-api-key": api_key, "accept": "application/json"}
     while True:
         url = f"{base_url.rstrip('/')}/api/crawling?offset={offset}&limit={limit}"
-        page = get(url, headers)
+        page = _get_with_retry(get, url, headers)
         datas = page.get("datas") or []
         if not datas:
             break

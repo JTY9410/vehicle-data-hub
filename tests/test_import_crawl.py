@@ -1,6 +1,6 @@
 from apps.extensions import db
 from apps.models import Vehicle
-from apps.services.crawl_client import iter_crawling_rows
+from apps.services.crawl_client import _get_with_retry, iter_crawling_rows
 from apps.services.import_crawl import import_from_crawl
 
 
@@ -71,6 +71,22 @@ def test_iter_crawling_rows_paginates_by_id_and_dedupes():
     assert any("offset=2" in u for u in calls)
 
 
+def test_get_with_retry_recovers_from_429():
+    calls = {"n": 0}
+
+    def flaky(_url, _headers):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RuntimeError("crawl API HTTP 429: Too many requests")
+        return {"ok": True}
+
+    sleeps = []
+    page = _get_with_retry(flaky, "https://x", {}, sleep=sleeps.append)
+    assert page == {"ok": True}
+    assert calls["n"] == 3
+    assert sleeps == [1, 2]
+
+
 def test_import_from_crawl_replaces_all_and_rejects_rental_and_9999(app):
     with app.app_context():
         db.session.add(
@@ -129,6 +145,48 @@ def test_replace_import_bulk_inserts_without_keeping_stale_rows(app):
             for v in db.session.execute(db.select(Vehicle)).scalars()
         }
         assert ids == {"n1": 1100, "n2": 1250}
+
+
+def test_replace_keeps_existing_rows_if_crawl_fetch_fails(app):
+    with app.app_context():
+        db.session.add(
+            Vehicle(site_type="encar", site_id="keep-me", car_no="12가0001", car_price=100)
+        )
+        db.session.commit()
+
+        def boom():
+            raise RuntimeError("crawl API HTTP 429: Too many requests")
+            yield
+
+        try:
+            import_from_crawl(source="cli", fetch_rows=boom, replace=True)
+        except RuntimeError as exc:
+            assert "429" in str(exc)
+        else:
+            raise AssertionError("expected crawl 429")
+
+        left = db.session.execute(db.select(Vehicle)).scalars().all()
+        assert len(left) == 1
+        assert left[0].site_id == "keep-me"
+
+
+def test_collect_post_shows_error_instead_of_500(client, app, monkeypatch):
+    from apps.cli import seed_admin_user
+
+    def boom(**_kwargs):
+        raise RuntimeError("crawl API HTTP 429: Too many requests")
+
+    monkeypatch.setattr("apps.services.import_crawl.iter_crawling_rows", boom)
+    with app.app_context():
+        seed_admin_user()
+        from apps.services.settings import set_setting
+
+        set_setting("crawl_api_key", "k")
+
+    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    r = client.post("/settings", data={"action": "collect"}, follow_redirects=True)
+    assert r.status_code == 200
+    assert "429".encode() in r.data or "수집 실패".encode() in r.data or "Too many".encode() in r.data
 
 
 def test_upload_post_syncs_from_crawl(client, app, monkeypatch):

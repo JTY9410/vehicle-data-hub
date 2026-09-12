@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from datetime import date, datetime, time, timezone
+from itertools import chain
 from pathlib import Path
 
 from sqlalchemy import insert, text, tuple_
@@ -258,30 +259,38 @@ def import_row_dicts(
         except Exception:  # noqa: BLE001
             db.session.rollback()
         if replace:
-            _wipe_vehicles()
-            index = get_code_index()
-            pending: dict[tuple[str, str], dict] = {}
-            for row in rows:
-                job.total_rows += 1
-                job.processed_rows += 1
-                site_type = (row.get("site_type") or "").strip()
-                site_id = str(row.get("site_id") or "").strip()
-                reject, _reason = should_reject_row(
-                    row.get("car_no"), row.get("car_price"), site_type, site_id
-                )
-                if reject:
-                    job.rejected_rows += 1
-                    continue
-                price = parse_price_manwon(row.get("car_price"))
-                assert price is not None
-                vehicle = Vehicle(site_type=site_type, site_id=site_id)
-                _apply_row(vehicle, row, csv_row_saved_at(row), price, index=index)
-                pending[(site_type, site_id)] = _vehicle_mapping(vehicle)
-                if len(pending) >= REPLACE_CHUNK_SIZE:
-                    _bulk_insert(list(pending.values()), job)
-                    pending = {}
-            _bulk_insert(list(pending.values()), job)
-            _analyze_vehicles()
+            row_iter = iter(rows)
+            try:
+                first = next(row_iter)
+            except StopIteration:
+                _wipe_vehicles()
+                _analyze_vehicles()
+                first = None
+            if first is not None:
+                _wipe_vehicles()
+                index = get_code_index()
+                pending: dict[tuple[str, str], dict] = {}
+                for row in chain((first,), row_iter):
+                    job.total_rows += 1
+                    job.processed_rows += 1
+                    site_type = (row.get("site_type") or "").strip()
+                    site_id = str(row.get("site_id") or "").strip()
+                    reject, _reason = should_reject_row(
+                        row.get("car_no"), row.get("car_price"), site_type, site_id
+                    )
+                    if reject:
+                        job.rejected_rows += 1
+                        continue
+                    price = parse_price_manwon(row.get("car_price"))
+                    assert price is not None
+                    vehicle = Vehicle(site_type=site_type, site_id=site_id)
+                    _apply_row(vehicle, row, csv_row_saved_at(row), price, index=index)
+                    pending[(site_type, site_id)] = _vehicle_mapping(vehicle)
+                    if len(pending) >= REPLACE_CHUNK_SIZE:
+                        _bulk_insert(list(pending.values()), job)
+                        pending = {}
+                _bulk_insert(list(pending.values()), job)
+                _analyze_vehicles()
         else:
             pending_rows: list[dict] = []
             for row in rows:

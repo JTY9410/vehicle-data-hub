@@ -413,7 +413,11 @@ def upload():
         if not crawl_configured:
             flash("CRAWL_API_KEY가 설정되지 않았습니다.", "warning")
             return redirect(url_for("admin.upload"))
-        job = import_from_crawl(source="web")
+        try:
+            job = import_from_crawl(source="web")
+        except Exception as exc:  # noqa: BLE001
+            flash(f"수집 실패: {exc}", "danger")
+            return redirect(url_for("admin.upload"))
         flash(
             f"동기화 완료: 저장 {job.saved_rows}, 거부 {job.rejected_rows}, 스킵 {job.skipped_rows}",
             "success",
@@ -506,7 +510,11 @@ def api_keys():
             if not crawl_key_configured():
                 flash("크롤 API 키를 먼저 저장하세요.", "warning")
                 return redirect(url_for("admin.api_keys"))
-            job = import_from_crawl(source="web", filename="manual")
+            try:
+                job = import_from_crawl(source="web", filename="manual")
+            except Exception as exc:  # noqa: BLE001
+                flash(f"수집 실패: {exc}", "danger")
+                return redirect(url_for("admin.api_keys"))
             flash(
                 f"수집 완료: 저장 {job.saved_rows}, 거부 {job.rejected_rows}, 스킵 {job.skipped_rows}",
                 "success",
