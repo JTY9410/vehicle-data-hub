@@ -138,7 +138,7 @@ def test_settings_page_saves_keys_and_manual_collect(client, app, monkeypatch):
         follow_redirects=True,
     )
     assert collected.status_code == 200
-    assert "예약".encode() in collected.data
+    assert "작업".encode() in collected.data
     with app.app_context():
         job = consume_queued_collect()
         assert job is not None

@@ -413,15 +413,8 @@ def upload():
         if not crawl_configured:
             flash("CRAWL_API_KEY가 설정되지 않았습니다.", "warning")
             return redirect(url_for("admin.upload"))
-        running = request_manual_collect()
-        if running:
-            flash("이미 수집이 진행 중입니다.", "warning")
-            return redirect(url_for("admin.upload_status", job_id=running.id))
-        flash(
-            "수집을 예약했습니다. 스케줄러가 크롤 API 한도를 기다린 뒤 시작합니다.",
-            "success",
-        )
-        return redirect(url_for("admin.dashboard"))
+        job = request_manual_collect()
+        return redirect(url_for("admin.upload_status", job_id=job.id))
     return render_template(
         "upload.html",
         job=job,
@@ -459,6 +452,7 @@ def upload_status_json(job_id: int):
         saved_rows=job.saved_rows,
         skipped_rows=job.skipped_rows,
         rejected_rows=job.rejected_rows,
+        error_message=job.error_message,
     )
 
 
@@ -509,15 +503,8 @@ def api_keys():
             if not crawl_key_configured():
                 flash("크롤 API 키를 먼저 저장하세요.", "warning")
                 return redirect(url_for("admin.api_keys"))
-            running = request_manual_collect()
-            if running:
-                flash("이미 수집이 진행 중입니다.", "warning")
-                return redirect(url_for("admin.upload_status", job_id=running.id))
-            flash(
-                "수집을 예약했습니다. 스케줄러가 크롤 API 한도를 기다린 뒤 시작합니다.",
-                "success",
-            )
-            return redirect(url_for("admin.dashboard"))
+            job = request_manual_collect()
+            return redirect(url_for("admin.upload_status", job_id=job.id))
         name = (request.form.get("name") or "").strip()
         if not name:
             flash("키 이름을 입력하세요.", "warning")

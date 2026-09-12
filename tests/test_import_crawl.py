@@ -169,6 +169,28 @@ def test_replace_import_bulk_inserts_without_keeping_stale_rows(app):
         assert ids == {"n1": 1100, "n2": 1250}
 
 
+def test_replace_keeps_existing_if_later_page_fails(app):
+    with app.app_context():
+        db.session.add(
+            Vehicle(site_type="encar", site_id="keep-me", car_no="12가0001", car_price=100)
+        )
+        db.session.commit()
+
+        def pages():
+            yield _item(id=1, site_id="n1", car_no="12가1001", car_price="1100")
+            raise RuntimeError("crawl API HTTP 429: Too many requests")
+
+        try:
+            import_from_crawl(source="cli", fetch_rows=pages, replace=True)
+        except RuntimeError as exc:
+            assert "429" in str(exc)
+        else:
+            raise AssertionError("expected crawl 429")
+
+        left = db.session.execute(db.select(Vehicle)).scalars().all()
+        assert [v.site_id for v in left] == ["keep-me"]
+
+
 def test_replace_keeps_existing_rows_if_crawl_fetch_fails(app):
     with app.app_context():
         db.session.add(
@@ -211,9 +233,15 @@ def test_collect_post_queues_without_hitting_crawl_api(client, app, monkeypatch)
     assert r.status_code == 200
     assert called["n"] == 0
     body = r.data.decode()
-    assert "예약" in body or "대기" in body
+    assert "작업" in body
+    assert "예약했습니다" not in body
     with app.app_context():
-        assert get_setting(CRAWL_COLLECT_NOW) == "1"
+        job = db.session.execute(
+            db.select(ImportJob).order_by(ImportJob.id.desc())
+        ).scalars().first()
+        assert job is not None
+        assert job.status in {"pending", "running"}
+        assert get_setting(CRAWL_COLLECT_NOW) == str(job.id)
 
 
 def test_consume_queued_collect_imports_and_clears_flag(app):
@@ -240,7 +268,7 @@ def test_stale_running_job_is_released_so_queue_can_run(app):
                 filename="manual",
                 status="running",
                 processed_rows=0,
-                started_at=utcnow() - timedelta(minutes=10),
+                started_at=utcnow() - timedelta(minutes=50),
             )
         )
         db.session.commit()

@@ -241,15 +241,24 @@ def import_row_dicts(
     filename: str,
     *,
     replace: bool = False,
+    job: ImportJob | None = None,
 ) -> ImportJob:
-    job = ImportJob(
-        source=source,
-        filename=filename,
-        status="running",
-        started_at=utcnow(),
-    )
-    db.session.add(job)
-    db.session.commit()
+    if job is None:
+        job = ImportJob(
+            source=source,
+            filename=filename,
+            status="running",
+            started_at=utcnow(),
+        )
+        db.session.add(job)
+        db.session.commit()
+    else:
+        job.status = "running"
+        job.source = source
+        job.filename = filename
+        if job.started_at is None:
+            job.started_at = utcnow()
+        db.session.commit()
 
     try:
         # Supabase 기본 statement_timeout 회피 (SQLite 테스트에서는 무시)

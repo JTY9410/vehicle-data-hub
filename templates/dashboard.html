@@ -36,7 +36,7 @@
       <tbody>
       {% for j in jobs %}
         <tr>
-          <td>{{ j.id }}</td>
+          <td><a href="{{ url_for('admin.upload_status', job_id=j.id) }}">{{ j.id }}</a></td>
           <td>{{ j.filename }}</td>
           <td>{{ j.status }}</td>
           <td>{{ "{:,}".format(j.saved_rows) }}</td>

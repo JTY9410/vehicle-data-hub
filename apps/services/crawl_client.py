@@ -49,7 +49,7 @@ def _default_http_get(url: str, headers: dict) -> dict:
         raise RuntimeError(f"crawl API 연결 실패: {exc.reason}") from exc
 
 
-def _get_with_retry(get, url: str, headers: dict, *, retries: int = 5, sleep=time.sleep):
+def _get_with_retry(get, url: str, headers: dict, *, retries: int = 30, sleep=time.sleep):
     last: Exception | None = None
     for attempt in range(retries + 1):
         try:

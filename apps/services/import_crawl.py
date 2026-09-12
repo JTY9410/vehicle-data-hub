@@ -9,7 +9,7 @@ from apps.services.import_csv import import_row_dicts
 from apps.services.settings import CRAWL_COLLECT_NOW, crawl_credentials, get_setting, set_setting
 
 PAGE_DELAY_SECONDS = 1.0
-STALE_IDLE_SECONDS = 180
+STALE_IDLE_SECONDS = 45 * 60
 STALE_MAX_SECONDS = 3 * 3600
 
 
@@ -53,21 +53,39 @@ def find_running_job() -> ImportJob | None:
     ).scalars().first()
 
 
-def request_manual_collect() -> ImportJob | None:
-    running = find_running_job()
-    if running:
-        return running
-    set_setting(CRAWL_COLLECT_NOW, "1")
-    return None
+def find_pending_job() -> ImportJob | None:
+    return db.session.execute(
+        db.select(ImportJob).where(ImportJob.status == "pending").order_by(ImportJob.id.desc())
+    ).scalars().first()
+
+
+def request_manual_collect() -> ImportJob:
+    current = find_running_job() or find_pending_job()
+    if current:
+        return current
+    job = ImportJob(source="web", filename="manual", status="pending")
+    db.session.add(job)
+    db.session.commit()
+    set_setting(CRAWL_COLLECT_NOW, str(job.id))
+    return job
 
 
 def consume_queued_collect(**kwargs):
     if find_running_job():
         return None
-    if not get_setting(CRAWL_COLLECT_NOW):
+    raw = get_setting(CRAWL_COLLECT_NOW)
+    job = find_pending_job()
+    if job is None and raw and raw.isdigit():
+        candidate = db.session.get(ImportJob, int(raw))
+        if candidate is not None and candidate.status == "pending":
+            job = candidate
+    if job is None and raw in {"1", "now"}:
+        set_setting(CRAWL_COLLECT_NOW, "")
+        return import_from_crawl(source="web", filename="queued", **kwargs)
+    if job is None:
         return None
     set_setting(CRAWL_COLLECT_NOW, "")
-    return import_from_crawl(source="web", filename="queued", **kwargs)
+    return import_from_crawl(source="web", filename="queued", job=job, **kwargs)
 
 
 def import_from_crawl(
@@ -76,9 +94,10 @@ def import_from_crawl(
     filename: str = "api/crawling",
     replace: bool = True,
     fetch_rows=None,
+    job: ImportJob | None = None,
 ) -> ImportJob:
     running = find_running_job()
-    if running:
+    if running and (job is None or running.id != job.id):
         raise RuntimeError(f"이미 수집 중 (작업 #{running.id})")
     if fetch_rows is None:
         base_url, api_key = crawl_credentials()
@@ -93,9 +112,32 @@ def import_from_crawl(
                 page_delay=PAGE_DELAY_SECONDS,
             )
 
-    return import_row_dicts(
-        (item_to_row(item) for item in fetch_rows()),
-        source,
-        filename,
-        replace=replace,
-    )
+    if job is None:
+        job = ImportJob(
+            source=source,
+            filename=filename,
+            status="running",
+            started_at=utcnow(),
+            error_message="크롤 API에서 받는 중입니다.",
+        )
+        db.session.add(job)
+    else:
+        job.status = "running"
+        job.source = source
+        job.filename = filename
+        job.started_at = utcnow()
+        job.error_message = "크롤 API에서 받는 중입니다."
+    db.session.commit()
+
+    try:
+        rows = [item_to_row(item) for item in fetch_rows()]
+    except Exception as exc:  # noqa: BLE001
+        job.status = "failed"
+        job.error_message = str(exc)
+        job.finished_at = utcnow()
+        db.session.commit()
+        raise
+
+    job.error_message = None
+    db.session.commit()
+    return import_row_dicts(rows, source, filename, replace=replace, job=job)

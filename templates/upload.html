@@ -44,17 +44,18 @@
 </div>
 
 {% if job %}
-<div class="glass-card p-4 mt-4">
-  <h2 class="h5">작업 #{{ job.id }} · {{ job.status }}</h2>
+<div class="glass-card p-4 mt-4" id="job-card" data-status-url="{{ url_for('admin.upload_status_json', job_id=job.id) }}">
+  <h2 class="h5">작업 #<span id="job-id">{{ job.id }}</span> · <span id="job-status">{{ job.status }}</span></h2>
+  <p class="small text-muted" id="job-message">{{ job.error_message or ("크롤 API에서 받는 중입니다. 한도면 자동으로 기다립니다." if job.status in ("pending", "running") else "") }}</p>
   <div class="progress mb-3" role="progressbar">
-    {% set pct = (100 * job.processed_rows / job.total_rows) if job.total_rows else 100 %}
-    <div class="progress-bar" style="width: {{ pct }}%; background: var(--wc-primary)">{{ pct|int }}%</div>
+    {% set pct = (100 * job.processed_rows / job.total_rows) if job.total_rows else 0 %}
+    <div class="progress-bar" id="job-progress" style="width: {{ pct }}%; background: var(--wc-primary)">{{ pct|int }}%</div>
   </div>
   <ul class="mb-0">
-    <li>전체 {{ "{:,}".format(job.total_rows) }}</li>
-    <li>저장 {{ "{:,}".format(job.saved_rows) }}</li>
-    <li>거부 {{ "{:,}".format(job.rejected_rows) }}</li>
-    <li>스킵 {{ "{:,}".format(job.skipped_rows) }}</li>
+    <li>전체 <span id="job-total">{{ "{:,}".format(job.total_rows) }}</span></li>
+    <li>저장 <span id="job-saved">{{ "{:,}".format(job.saved_rows) }}</span></li>
+    <li>거부 <span id="job-rejected">{{ "{:,}".format(job.rejected_rows) }}</span></li>
+    <li>스킵 <span id="job-skipped">{{ "{:,}".format(job.skipped_rows) }}</span></li>
   </ul>
 </div>
 {% endif %}
@@ -62,4 +63,34 @@
 
 {% block body_end %}
 {% include "_reset_data_dialog.html" %}
+{% if job and job.status in ("pending", "running") %}
+<script>
+(() => {
+  const card = document.getElementById("job-card");
+  if (!card) return;
+  const url = card.dataset.statusUrl;
+  const fmt = (n) => Number(n || 0).toLocaleString("ko-KR");
+  const tick = async () => {
+    const r = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!r.ok) return;
+    const j = await r.json();
+    document.getElementById("job-status").textContent = j.status;
+    document.getElementById("job-total").textContent = fmt(j.total_rows);
+    document.getElementById("job-saved").textContent = fmt(j.saved_rows);
+    document.getElementById("job-rejected").textContent = fmt(j.rejected_rows);
+    document.getElementById("job-skipped").textContent = fmt(j.skipped_rows);
+    const pct = j.total_rows ? Math.floor(100 * j.processed_rows / j.total_rows) : 0;
+    const bar = document.getElementById("job-progress");
+    bar.style.width = pct + "%";
+    bar.textContent = pct + "%";
+    const msg = document.getElementById("job-message");
+    if (j.error_message) msg.textContent = j.error_message;
+    else if (j.status === "completed") msg.textContent = "수집이 완료되었습니다.";
+    else if (j.status === "failed") msg.textContent = "수집이 실패했습니다.";
+    if (j.status === "pending" || j.status === "running") setTimeout(tick, 2000);
+  };
+  setTimeout(tick, 2000);
+})();
+</script>
+{% endif %}
 {% endblock %}
