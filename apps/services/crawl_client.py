@@ -70,11 +70,12 @@ def iter_crawling_rows(
     limit: int = DEFAULT_LIMIT,
     http_get=None,
     page_delay: float = 0.0,
+    start_offset: int = 0,
     sleep=time.sleep,
 ):
     """GET /api/crawling 을 id offset 커서로 모두 순회. 중복 id는 건너뛴다."""
     get = http_get or _default_http_get
-    offset = 0
+    offset = max(0, int(start_offset))
     seen_ids: set[int] = set()
     headers = {"x-api-key": api_key, "accept": "application/json"}
     while True:

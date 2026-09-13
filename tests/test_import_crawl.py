@@ -169,6 +169,28 @@ def test_replace_import_bulk_inserts_without_keeping_stale_rows(app):
         assert ids == {"n1": 1100, "n2": 1250}
 
 
+def test_iter_crawling_rows_resumes_from_offset():
+    calls = []
+
+    def http_get(url, headers):
+        calls.append(url)
+        if "offset=10" in url:
+            return {"datas": [_item(id=11, site_id="r1")], "total": 11, "limit": 2, "offset": 10}
+        return {"datas": [], "total": 11, "limit": 2, "offset": 99}
+
+    rows = list(
+        iter_crawling_rows(
+            base_url="https://crawl.example.test",
+            api_key="k",
+            limit=2,
+            start_offset=10,
+            http_get=http_get,
+        )
+    )
+    assert [r["id"] for r in rows] == [11]
+    assert any("offset=10" in u for u in calls)
+
+
 def test_replace_keeps_existing_if_later_page_fails(app):
     with app.app_context():
         db.session.add(
@@ -187,8 +209,12 @@ def test_replace_keeps_existing_if_later_page_fails(app):
         else:
             raise AssertionError("expected crawl 429")
 
-        left = db.session.execute(db.select(Vehicle)).scalars().all()
-        assert [v.site_id for v in left] == ["keep-me"]
+        left = {
+            v.site_id: v.car_price
+            for v in db.session.execute(db.select(Vehicle)).scalars()
+        }
+        assert left["keep-me"] == 100
+        assert left["n1"] == 1100
 
 
 def test_replace_keeps_existing_rows_if_crawl_fetch_fails(app):

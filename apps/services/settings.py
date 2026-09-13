@@ -8,6 +8,7 @@ from apps.models import AppSetting, utcnow
 CRAWL_API_KEY = "crawl_api_key"
 CRAWL_API_URL = "crawl_api_url"
 CRAWL_COLLECT_NOW = "crawl_collect_now"
+CRAWL_RESUME_ID = "crawl_resume_id"
 DEFAULT_CRAWL_URL = "https://crawl.wecarmobility.co.kr"
 
 

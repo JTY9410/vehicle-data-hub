@@ -242,6 +242,7 @@ def import_row_dicts(
     *,
     replace: bool = False,
     job: ImportJob | None = None,
+    complete: bool = True,
 ) -> ImportJob:
     if job is None:
         job = ImportJob(
@@ -333,8 +334,9 @@ def import_row_dicts(
 
             _flush_chunk(job, pending_rows)
 
-        job.status = "completed"
-        job.finished_at = utcnow()
+        if complete:
+            job.status = "completed"
+            job.finished_at = utcnow()
         db.session.commit()
     except Exception as exc:  # noqa: BLE001
         db.session.rollback()
@@ -347,6 +349,17 @@ def import_row_dicts(
         raise
 
     return job
+
+
+def delete_vehicles_missing_keys(keep: set[tuple[str, str]]) -> int:
+    if not keep:
+        _wipe_vehicles()
+        return 0
+    result = db.session.execute(
+        db.delete(Vehicle).where(tuple_(Vehicle.site_type, Vehicle.site_id).not_in(list(keep)))
+    )
+    db.session.commit()
+    return result.rowcount or 0
 
 
 def import_csv_file(path: str | Path, source: str, filename: str | None = None) -> ImportJob:

@@ -14,6 +14,12 @@ POLL_SECONDS = 5
 
 def main() -> None:
     app = create_app()
+    with app.app_context():
+        from apps.services.import_crawl import fail_running_jobs
+
+        n = fail_running_jobs()
+        if n:
+            print(f"reset running jobs={n}", flush=True)
     while True:
         nxt = next_sunday_midnight_kst()
         deadline = time.monotonic() + max(1, int((nxt - datetime.now(nxt.tzinfo)).total_seconds()))
@@ -28,6 +34,12 @@ def main() -> None:
                             flush=True,
                         )
                 except Exception as exc:  # noqa: BLE001
+                    try:
+                        from apps.extensions import db
+
+                        db.session.rollback()
+                    except Exception:  # noqa: BLE001
+                        pass
                     print(f"queued crawl failed: {exc}", flush=True)
             remaining = deadline - time.monotonic()
             time.sleep(min(POLL_SECONDS, max(1, remaining)))
