@@ -10,8 +10,10 @@ from apps.services.import_csv import delete_vehicles_missing_keys, import_row_di
 from apps.services.settings import (
     CRAWL_COLLECT_NOW,
     CRAWL_RESUME_ID,
+    crawl_cooldown_remaining,
     crawl_credentials,
     get_setting,
+    set_crawl_cooldown,
     set_setting,
 )
 
@@ -92,6 +94,9 @@ def request_manual_collect() -> ImportJob:
 
 
 def consume_queued_collect(**kwargs):
+    left = crawl_cooldown_remaining()
+    if left:
+        return None
     if find_running_job():
         return None
     raw = get_setting(CRAWL_COLLECT_NOW)
@@ -206,6 +211,12 @@ def import_from_crawl(
         job.status = "failed"
         job.error_message = str(exc)
         job.finished_at = utcnow()
+        if "HTTP 429" in str(exc):
+            set_crawl_cooldown()
+            set_setting(CRAWL_COLLECT_NOW, "now")
+            job.error_message = (
+                f"크롤 API 한도. {max(1, crawl_cooldown_remaining() // 60)}분 후 자동 재시도"
+            )
         db.session.commit()
         raise
 

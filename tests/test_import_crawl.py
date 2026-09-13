@@ -9,7 +9,13 @@ from apps.services.crawl_client import (
     retry_wait_seconds,
 )
 from apps.services.import_crawl import consume_queued_collect, import_from_crawl
-from apps.services.settings import CRAWL_COLLECT_NOW, get_setting, set_setting
+from apps.services.settings import (
+    CRAWL_COLLECT_NOW,
+    crawl_cooldown_remaining,
+    get_setting,
+    set_crawl_cooldown,
+    set_setting,
+)
 
 
 def _item(**overrides):
@@ -93,20 +99,38 @@ def test_parse_retry_after_and_default_wait():
     assert retry_wait_seconds(err, attempt=0) == 7
 
 
-def test_get_with_retry_recovers_from_429():
+def test_get_with_retry_does_not_hammer_429_without_retry_after():
+    calls = {"n": 0}
+
+    def always_429(_url, _headers):
+        calls["n"] += 1
+        raise CrawlHttpError(429, "Too many requests", retry_after=None)
+
+    sleeps = []
+    try:
+        _get_with_retry(always_429, "https://x", {}, sleep=sleeps.append)
+    except CrawlHttpError as exc:
+        assert "429" in str(exc)
+    else:
+        raise AssertionError("expected 429")
+    assert calls["n"] == 1
+    assert sleeps == []
+
+
+def test_get_with_retry_honors_short_retry_after_once():
     calls = {"n": 0}
 
     def flaky(_url, _headers):
         calls["n"] += 1
-        if calls["n"] < 3:
-            raise CrawlHttpError(429, "Too many requests", retry_after=None)
+        if calls["n"] < 2:
+            raise CrawlHttpError(429, "Too many requests", retry_after=3)
         return {"ok": True}
 
     sleeps = []
     page = _get_with_retry(flaky, "https://x", {}, sleep=sleeps.append)
     assert page == {"ok": True}
-    assert calls["n"] == 3
-    assert sleeps == [60, 120]
+    assert calls["n"] == 2
+    assert sleeps == [3]
 
 
 def test_import_from_crawl_replaces_all_and_rejects_rental_and_9999(app):
@@ -268,6 +292,33 @@ def test_collect_post_queues_without_hitting_crawl_api(client, app, monkeypatch)
         assert job is not None
         assert job.status in {"pending", "running"}
         assert get_setting(CRAWL_COLLECT_NOW) == str(job.id)
+
+
+def test_429_sets_cooldown_and_requeues(app):
+    with app.app_context():
+        def boom():
+            raise RuntimeError("crawl API HTTP 429: Too many requests")
+            yield
+
+        try:
+            import_from_crawl(source="cli", fetch_rows=boom, replace=True)
+        except RuntimeError as exc:
+            assert "429" in str(exc)
+        else:
+            raise AssertionError("expected crawl 429")
+        assert crawl_cooldown_remaining() >= 60
+        assert get_setting(CRAWL_COLLECT_NOW) == "now"
+
+
+def test_consume_skips_while_cooldown_active(app):
+    with app.app_context():
+        set_crawl_cooldown(600)
+        set_setting(CRAWL_COLLECT_NOW, "now")
+        job = consume_queued_collect(
+            fetch_rows=lambda: [_item(id=8, site_id="q1", car_no="12가8001", car_price="1300")]
+        )
+        assert job is None
+        assert get_setting(CRAWL_COLLECT_NOW) == "now"
 
 
 def test_consume_queued_collect_imports_and_clears_flag(app):

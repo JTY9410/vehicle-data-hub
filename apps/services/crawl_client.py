@@ -49,16 +49,18 @@ def _default_http_get(url: str, headers: dict) -> dict:
         raise RuntimeError(f"crawl API 연결 실패: {exc.reason}") from exc
 
 
-def _get_with_retry(get, url: str, headers: dict, *, retries: int = 30, sleep=time.sleep):
+def _get_with_retry(get, url: str, headers: dict, *, retries: int = 1, sleep=time.sleep):
     last: Exception | None = None
     for attempt in range(retries + 1):
         try:
             return get(url, headers)
         except RuntimeError as exc:
             last = exc
-            if "HTTP 429" not in str(exc) or attempt >= retries:
+            retry_after = getattr(exc, "retry_after", None)
+            if "HTTP 429" not in str(exc) or retry_after is None or attempt >= retries:
                 raise
-            sleep(retry_wait_seconds(exc, attempt=attempt))
+            wait = min(60.0, max(1.0, float(retry_after)))
+            sleep(wait)
     assert last is not None
     raise last
 
