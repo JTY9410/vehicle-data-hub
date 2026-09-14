@@ -112,18 +112,26 @@ def _apply_row(
     vehicle.car_grade = _clean(row.get("car_grade"))
     vehicle.car_subgrade = _clean(row.get("car_subgrade"))
     vehicle.car_fuel = infer_fuel(row.get("car_fuel"), row.get("car_grade"))
-    vehicle.car_mission = normalize_mission(row.get("car_mission"))
-    vehicle.car_color = normalize_color(row.get("car_color"))
+    vehicle.car_mission = normalize_mission(row.get("car_mission") or row.get("미션"))
+    vehicle.car_color = normalize_color(row.get("car_color") or row.get("색상"))
     vehicle.car_location = _clean(row.get("car_location"))
     vehicle.car_import_yn = _clean(row.get("car_import_yn"))
     vehicle.car_cc = _clean(row.get("car_cc"))
-    vehicle.car_type = normalize_type(row.get("car_type"))
-    vehicle.car_seat = _clean(row.get("car_seat"))
+    vehicle.car_type = normalize_type(row.get("car_type") or row.get("차종"))
+    vehicle.car_seat = _clean(row.get("car_seat") or row.get("인승"))
     vehicle.detail_info = _clean(row.get("detail_info"))
-    vehicle.option_info = _clean(row.get("option_info"))
-    vehicle.unique_option_info = _clean(row.get("unique_option_info"))
-    vehicle.inspected_at = parse_csv_saved_at(row.get("inspected_at"))
-    vehicle.diag_info = _clean(row.get("diag_info"))
+    vehicle.option_info = _clean(row.get("option_info") or row.get("옵션정보"))
+    vehicle.unique_option_info = _clean(row.get("unique_option_info") or row.get("유용옵션"))
+    vehicle.inspected_at = parse_csv_saved_at(row.get("inspected_at") or row.get("성능점검일"))
+    vehicle.diag_info = _clean(row.get("diag_info") or row.get("진단정보"))
+    vehicle.색상 = vehicle.car_color
+    vehicle.미션 = vehicle.car_mission
+    vehicle.차종 = vehicle.car_type
+    vehicle.인승 = vehicle.car_seat
+    vehicle.성능점검일 = vehicle.inspected_at
+    vehicle.옵션정보 = vehicle.option_info
+    vehicle.유용옵션 = vehicle.unique_option_info
+    vehicle.진단정보 = vehicle.diag_info
     vehicle.url_link = _clean(row.get("url_link"))
     vehicle.scraped_at = scraped_at
     vehicle.updated_at = utcnow()
@@ -210,6 +218,14 @@ def _vehicle_mapping(vehicle: Vehicle) -> dict:
         "mdetail_no": vehicle.mdetail_no,
         "grade_no": vehicle.grade_no,
         "gdetail_no": vehicle.gdetail_no,
+        "색상": vehicle.색상,
+        "미션": vehicle.미션,
+        "차종": vehicle.차종,
+        "인승": vehicle.인승,
+        "성능점검일": vehicle.성능점검일,
+        "옵션정보": vehicle.옵션정보,
+        "유용옵션": vehicle.유용옵션,
+        "진단정보": vehicle.진단정보,
         "created_at": now,
         "updated_at": now,
     }

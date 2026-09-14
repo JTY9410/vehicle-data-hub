@@ -45,9 +45,14 @@ def test_import_stores_crawl_fields_in_own_columns(app):
                     "car_maker": "현대",
                     "car_model": "쏘나타",
                     "car_fuel": "가솔린",
+                    "car_mission": "오토",
+                    "car_color": "흰색",
+                    "car_type": "세단",
+                    "car_seat": 5,
                     "option_info": "opt",
                     "unique_option_info": "sunroof",
                     "inspected_at": "2024-05-01",
+                    "diag_info": "diag",
                     "url_link": "https://example.com/1",
                     "created_at": "2024-01-01T00:00:00+00:00",
                 }
@@ -62,6 +67,40 @@ def test_import_stores_crawl_fields_in_own_columns(app):
         assert kept.unique_option_info == "sunroof"
         assert kept.inspected_at is not None
         assert kept.inspected_at.date().isoformat() == "2024-05-01"
+        assert kept.색상 == kept.car_color
+        assert kept.미션 == kept.car_mission
+        assert kept.차종 == kept.car_type
+        assert kept.인승 == kept.car_seat
+        assert kept.성능점검일 == kept.inspected_at
+        assert kept.옵션정보 == "opt"
+        assert kept.유용옵션 == "sunroof"
+        assert kept.진단정보 == kept.diag_info
+
+
+def test_item_to_row_copies_korean_api_keys():
+    row = item_to_row(
+        {
+            "id": 2,
+            "site_type": "encar",
+            "site_id": "ko-1",
+            "색상": "흰색",
+            "미션": "오토",
+            "차종": "세단",
+            "인승": 5,
+            "성능점검일": "2024-05-01",
+            "옵션정보": "opt",
+            "유용옵션": "sunroof",
+            "진단정보": "diag",
+        }
+    )
+    assert row["car_color"] == "흰색"
+    assert row["car_mission"] == "오토"
+    assert row["car_type"] == "세단"
+    assert row["car_seat"] == "5"
+    assert row["inspected_at"] == "2024-05-01"
+    assert row["option_info"] == "opt"
+    assert row["unique_option_info"] == "sunroof"
+    assert row["diag_info"] == "diag"
 
 
 def test_settings_crawl_key_overrides_env(app):

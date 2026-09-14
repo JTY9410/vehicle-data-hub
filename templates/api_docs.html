@@ -127,7 +127,102 @@ const data = await res.json();</code></pre>
   <pre class="bg-light p-3 rounded"><code>id, car_import_yn, site_type, site_id, car_no, car_year, car_km, car_price,
 car_maker, car_model, car_submodel, car_grade, car_subgrade, car_fuel,
 car_mission, car_color, car_location, detail_info, option_info, unique_option_info,
-diag_info, url_link, created_at, inspected_at, car_cc, car_type, car_seat</code></pre>
+diag_info, url_link, created_at, inspected_at, car_cc, car_type, car_seat,
+색상, 미션, 차종, 인승, 성능점검일, 옵션정보, 유용옵션, 진단정보</code></pre>
+
+  <h3 class="h5 mt-3">7.1 크롤 응답 샘플</h3>
+  <p class="small text-muted mb-2"><code>GET https://crawl.wecarmobility.co.kr/api/crawling?offset=0&amp;limit=2000</code> · 헤더 <code>x-api-key</code>. 번호 하/허/호, 가격 ≤0 또는 ≥9999는 저장하지 않습니다.</p>
+  <pre class="bg-light p-3 rounded"><code>{
+  "datas": [
+    {
+      "id": 10,
+      "car_import_yn": "N",
+      "site_type": "encar",
+      "site_id": "s-10",
+      "car_no": "12가3456",
+      "car_year": "2020",
+      "car_km": "10000",
+      "car_price": "1500",
+      "car_maker": "현대",
+      "car_model": "쏘나타",
+      "car_submodel": "DN8",
+      "car_grade": "가솔린 2.0",
+      "car_subgrade": "인스퍼레이션",
+      "car_fuel": "가솔린",
+      "car_mission": "오토",
+      "car_color": "흰색",
+      "car_location": "서울",
+      "car_cc": "1999",
+      "car_type": "세단",
+      "car_seat": 5,
+      "detail_info": "{\"a\":1}",
+      "option_info": "opt",
+      "unique_option_info": "uniq",
+      "diag_info": "diag",
+      "url_link": "https://example.com/10",
+      "inspected_at": "2024-05-01",
+      "created_at": "2024-01-01T00:00:00+00:00"
+    }
+  ],
+  "total": 1,
+  "limit": 2000,
+  "offset": 0
+}</code></pre>
+
+  <h3 class="h5 mt-3">7.2 허브 응답 샘플</h3>
+  <p class="small text-muted mb-2"><code>GET /api/v1/vehicles?page=1&amp;per_page=20&amp;include=text</code> · 헤더 <code>X-API-Key</code>. <code>id</code>는 크롤 id(<code>source_id</code>), 상세 URL은 <code>db_id</code>. 목록 기본 호출에는 긴 텍스트가 없고 <code>include=text</code>일 때만 붙습니다. 가격 단위는 만원.</p>
+  <pre class="bg-light p-3 rounded"><code>{
+  "page": 1,
+  "per_page": 20,
+  "total": 1,
+  "price_unit": "만원",
+  "items": [
+    {
+      "id": "10",
+      "db_id": 1,
+      "car_import_yn": "N",
+      "site_type": "encar",
+      "site_id": "s-10",
+      "car_no": "12가3456",
+      "car_year": "2020",
+      "car_km": 10000,
+      "car_price": 1500,
+      "car_maker": "현대",
+      "car_model": "쏘나타",
+      "car_submodel": "DN8",
+      "car_grade": "가솔린 2.0",
+      "car_subgrade": "인스퍼레이션",
+      "maker_no": null,
+      "model_no": null,
+      "mdetail_no": null,
+      "grade_no": null,
+      "gdetail_no": null,
+      "car_fuel": "가솔린",
+      "car_mission": "오토",
+      "car_color": "흰색",
+      "car_location": "서울",
+      "url_link": "https://example.com/10",
+      "created_at": "2024-01-01T00:00:00+00:00",
+      "car_cc": "1999",
+      "car_type": "세단",
+      "car_seat": "5",
+      "inspected_at": "2024-05-01",
+      "색상": "흰색",
+      "미션": "오토",
+      "차종": "세단",
+      "인승": "5",
+      "성능점검일": "2024-05-01",
+      "price_unit": "만원",
+      "detail_info": "{\"a\":1}",
+      "option_info": "opt",
+      "unique_option_info": "uniq",
+      "diag_info": "diag",
+      "옵션정보": "opt",
+      "유용옵션": "uniq",
+      "진단정보": "diag"
+    }
+  ]
+}</code></pre>
 </article>
 
 <style>

@@ -46,6 +46,14 @@ VEHICLE_FIELDS = (
     "car_cc",
     "car_type",
     "car_seat",
+    "색상",
+    "미션",
+    "차종",
+    "인승",
+    "성능점검일",
+    "옵션정보",
+    "유용옵션",
+    "진단정보",
 )
 
 
@@ -75,7 +83,15 @@ def require_api_key(view):
     return wrapped
 
 
-_TEXT_FIELDS = ("detail_info", "option_info", "unique_option_info", "diag_info")
+_TEXT_FIELDS = (
+    "detail_info",
+    "option_info",
+    "unique_option_info",
+    "diag_info",
+    "옵션정보",
+    "유용옵션",
+    "진단정보",
+)
 _LIST_LOAD = load_only(
     Vehicle.id,
     Vehicle.source_id,
@@ -103,6 +119,12 @@ _LIST_LOAD = load_only(
     Vehicle.car_cc,
     Vehicle.car_type,
     Vehicle.car_seat,
+    Vehicle.inspected_at,
+    Vehicle.색상,
+    Vehicle.미션,
+    Vehicle.차종,
+    Vehicle.인승,
+    Vehicle.성능점검일,
     Vehicle.url_link,
     Vehicle.scraped_at,
 )
@@ -140,6 +162,11 @@ def _vehicle_public(v: Vehicle, *, include_text: bool = True) -> dict:
         "car_type": v.car_type,
         "car_seat": v.car_seat,
         "inspected_at": v.inspected_at.date().isoformat() if v.inspected_at else None,
+        "색상": v.색상,
+        "미션": v.미션,
+        "차종": v.차종,
+        "인승": v.인승,
+        "성능점검일": v.성능점검일.date().isoformat() if v.성능점검일 else None,
         "price_unit": "만원",
     }
     if include_text:
@@ -147,6 +174,9 @@ def _vehicle_public(v: Vehicle, *, include_text: bool = True) -> dict:
         payload["option_info"] = v.option_info
         payload["unique_option_info"] = v.unique_option_info
         payload["diag_info"] = v.diag_info
+        payload["옵션정보"] = v.옵션정보
+        payload["유용옵션"] = v.유용옵션
+        payload["진단정보"] = v.진단정보
     return payload
 
 

@@ -248,3 +248,11 @@ def test_api_list_and_detail(client, app):
     assert "detail_info" in body
     assert "created_at" in body
     assert "car_seat" in body
+    assert "색상" in body
+    assert "미션" in body
+    assert "차종" in body
+    assert "인승" in body
+    assert "성능점검일" in body
+    assert "옵션정보" in body
+    assert "유용옵션" in body
+    assert "진단정보" in body

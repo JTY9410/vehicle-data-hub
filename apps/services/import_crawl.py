@@ -21,9 +21,23 @@ PAGE_DELAY_SECONDS = 1.0
 STALE_IDLE_SECONDS = 45 * 60
 STALE_MAX_SECONDS = 3 * 3600
 
+_KOREAN_TO_EN = {
+    "색상": "car_color",
+    "미션": "car_mission",
+    "차종": "car_type",
+    "인승": "car_seat",
+    "성능점검일": "inspected_at",
+    "옵션정보": "option_info",
+    "유용옵션": "unique_option_info",
+    "진단정보": "diag_info",
+}
+
 
 def item_to_row(item: dict) -> dict:
     row = dict(item)
+    for korean, english in _KOREAN_TO_EN.items():
+        if row.get(english) in (None, "") and row.get(korean) not in (None, ""):
+            row[english] = row[korean]
     if row.get("id") is not None:
         row["id"] = str(row["id"])
     if row.get("site_id") is not None:
