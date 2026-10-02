@@ -74,7 +74,7 @@ def test_remap_vehicle_attrs(app):
 def test_upload_page_can_reset_imported_data(client, app):
     with app.app_context():
         seed_admin_user()
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     page = client.get("/upload")
     assert page.status_code == 200
     assert b'id="resetDataDialog"' in page.data

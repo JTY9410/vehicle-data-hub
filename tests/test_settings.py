@@ -131,7 +131,7 @@ def test_settings_page_saves_keys_and_manual_collect(client, app, monkeypatch):
     with app.app_context():
         seed_admin_user()
 
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     page = client.get("/settings")
     assert page.status_code == 200
     assert "Crawl API".encode() in page.data or "크롤".encode() in page.data

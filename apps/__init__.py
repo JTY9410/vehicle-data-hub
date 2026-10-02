@@ -49,6 +49,16 @@ def create_app(config_object="config.Config"):
         csrf.exempt(api_bp)
         _register_cli(app)
 
+        @app.after_request
+        def _security_headers(resp):
+            resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+            resp.headers.setdefault("X-Frame-Options", "DENY")
+            resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+            resp.headers.setdefault(
+                "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+            )
+            return resp
+
         @app.errorhandler(404)
         def not_found(_err):
             from flask import jsonify, request

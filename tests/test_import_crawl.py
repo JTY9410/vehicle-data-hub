@@ -278,7 +278,7 @@ def test_collect_post_queues_without_hitting_crawl_api(client, app, monkeypatch)
         seed_admin_user()
         set_setting("crawl_api_key", "k")
 
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     r = client.post("/settings", data={"action": "collect"}, follow_redirects=True)
     assert r.status_code == 200
     assert called["n"] == 0
@@ -398,7 +398,7 @@ def test_upload_post_queues_then_scheduler_syncs(client, app, monkeypatch):
         )
         db.session.commit()
 
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     r = client.post("/upload", follow_redirects=True)
     assert r.status_code == 200
     with app.app_context():

@@ -2,15 +2,28 @@
 
 Flask + PostgreSQL 매물 허브. 운영 런타임은 **Docker Compose** 권장.
 
+작업 전 `pro.md`를 읽는다. 실행·설정·마이그레이션·테스트는 아래를 따른다.
+
 ## 로컬 / Docker
 
 ```bash
 cp .env.example .env
+# SECRET_KEY, DATABASE_URL 을 채운다. 관리자 비밀번호는 저장소 기본값이 없다.
 docker compose up -d --build
-# http://127.0.0.1:8001
+# http://127.0.0.1:8001/setup 에서 최초 관리자를 만든다
 ```
 
-관리자 기본: `wecar` / `1004wecar`
+```bash
+# 테스트 (SQLite, DATABASE_URL 없이)
+pytest -q
+
+# 마이그레이션
+export FLASK_APP=wsgi:app
+flask db migrate -m "reason"
+flask db upgrade
+```
+
+관리자 계정은 제품에 넣지 않습니다. 빈 데이터베이스면 `/setup`에서 최초 관리자를 만들고, 이미 계정이 있으면 `.env`의 `ADMIN_USERNAME` / `ADMIN_PASSWORD`로 `flask seed-admin --force-password`만 사용하세요.
 
 ## 배포 (자동)
 
@@ -30,7 +43,7 @@ docker compose up -d --build
 
 **https://vehicle-data-hub-alpha.vercel.app/login**
 
-- 계정: `wecar` / `1004wecar`
+- 계정은 저장소에 없습니다. 운영 담당자가 개별 전달한 아이디/비밀번호를 사용하세요.
 - `/healthz` → `{"status":"ok"}` 이면 정상
 
 ### 잘못된 주소 (404 나는 곳)

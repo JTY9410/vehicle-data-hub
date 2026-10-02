@@ -214,17 +214,12 @@ project-root/
 
 ---
 
-## 6. Default Admin Seed
+## 6. Admin Bootstrap
 
-| Field | Default (dev only) |
-|-------|--------------------|
-| Username | `wecar` |
-| Password | `1004wecar` |
-
-- Override: `ADMIN_USERNAME` / `ADMIN_PASSWORD` in `.env`.
-- Seed **한 곳**만 (CLI `flask seed-admin` 권장).
+- 고정 관리자 계정·공통 비밀번호를 제품에 넣지 않는다.
+- 빈 DB: `/setup` 일회성 등록. 또는 `.env`의 `ADMIN_USERNAME` / `ADMIN_PASSWORD` + `flask seed-admin`.
+- 공유된 초안 비밀번호는 시드·로그인에서 거부한다.
 - Hash only; never commit real prod passwords.
-- First login: force password change 권장(프로덕션).
 
 ---
 
@@ -259,5 +254,5 @@ agent.md(2026)를 최우선으로 따른다.
 - 템플릿 [UI Flow] 주석, Mobbin Quicken(사이드내비·카드·프로그레스)·oklch 토큰·다크모드
 - PWA + 인앱 브라우저 탈출
 - Ruff/pytest 가능하면 검증, 제안 전 3회 자가 검토
-- Admin seed: wecar / 1004wecar (hash, env override)
+- Admin: /setup 또는 ADMIN_* env + flask seed-admin. 초안 비밀번호 금지.
 ```

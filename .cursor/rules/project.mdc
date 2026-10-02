@@ -1,0 +1,13 @@
+---
+description: Read pro.md before changing this Flask vehicle hub
+alwaysApply: true
+---
+
+# Vehicle Data Hub
+
+작업 전에 `pro.md`와 실제 요구사항을 읽는다.
+
+- Flask/Jinja/Bootstrap 5.3.8 유지. Tailwind는 prefix `tw-`, preflight off.
+- 고정 관리자 비밀번호를 코드·README·예제에 넣지 않는다. 최초 계정은 `/setup` 또는 env + `flask seed-admin`.
+- 확인되지 않은 업무 테이블(AI, MFA 등)을 미리 만들지 않는다.
+- `apps/routes`와 `apps/services`를 `app/modules`로 옮기지 않는다.

@@ -17,7 +17,7 @@ def test_api_key_title_reveal_and_copy_payload(client, app):
         seed_admin_user()
         row, raw = create_api_key("popup-key")
         kid = row.id
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     page = client.get("/api-keys")
     assert page.status_code == 200
     assert b"key-title" in page.data
@@ -33,7 +33,7 @@ def test_login_and_upload(client, app):
         seed_admin_user()
     r = client.post(
         "/login",
-        data={"username": "wecar", "password": "1004wecar"},
+        data={"username": "testadmin", "password": "test-admin-pass"},
         follow_redirects=True,
     )
     assert r.status_code == 200
@@ -78,7 +78,7 @@ def test_vehicles_search_by_maker_model_subgrade(client, app):
             )
         )
         db.session.commit()
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     r = client.get("/vehicles?maker_no=10055&model_no=2001")
     assert r.status_code == 200
     assert "인스퍼레이션".encode() in r.data
@@ -111,7 +111,7 @@ def test_vehicles_shows_fuel_and_filters_by_fuel(client, app):
             )
         )
         db.session.commit()
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     page = client.get("/vehicles")
     assert page.status_code == 200
     assert ">연료<".encode() in page.data
@@ -167,7 +167,7 @@ def test_api_search_and_list_by_fuel(client, app):
 def test_api_docs_page(client, app):
     with app.app_context():
         seed_admin_user()
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     r = client.get("/api-keys/docs")
     assert r.status_code == 200
     assert "API 명세서".encode() in r.data
@@ -180,7 +180,7 @@ def test_reset_dialog_markup(client, app):
         from apps.cli import seed_admin_user
 
         seed_admin_user()
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     r = client.get("/")
     assert r.status_code == 200
     assert b'id="resetDataDialog"' in r.data
@@ -199,7 +199,7 @@ def test_reset_dialog_markup(client, app):
             )
         )
         db.session.commit()
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     r = client.post("/reset-data", data={"confirm": "NO"}, follow_redirects=True)
     assert r.status_code == 200
     with app.app_context():

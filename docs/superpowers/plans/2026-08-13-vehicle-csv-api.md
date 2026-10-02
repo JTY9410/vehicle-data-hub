@@ -17,7 +17,7 @@
 - Reject `car_no` containing `하`, `허`, or `호`.
 - Upsert key: `(site_type, site_id)`; overwrite only when incoming `scraped_at` is newer.
 - Secrets only in `.env`; never commit `.env` or plaintext API keys.
-- Admin seed default: `wecar` / `1004wecar` (env override).
+- Admin bootstrap: env `ADMIN_*` or `/setup`. No product default password.
 - Templates must include `[UI Flow]` comment; PWA + in-app escape required.
 - Do not commit `*.csv` (gitignored).
 
@@ -124,7 +124,7 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "wecar")
-    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1004wecar")
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
     MAX_CONTENT_LENGTH = 512 * 1024 * 1024  # 512MB uploads
     UPLOAD_FOLDER = BASE_DIR / "uploads"
     API_PER_PAGE_MAX = 100
@@ -193,7 +193,7 @@ app = create_app()
 SECRET_KEY=change-me
 DATABASE_URL=postgresql+psycopg://vehicle:vehicle@db:5432/vehicle
 ADMIN_USERNAME=wecar
-ADMIN_PASSWORD=1004wecar
+ADMIN_PASSWORD=
 ```
 
 - [ ] **Step 4: Run test — expect pass**
@@ -601,7 +601,7 @@ def test_dashboard_requires_login(client):
 
 def test_login_and_upload(client, app):
     # seed admin first
-    r = client.post("/login", data={"username": "wecar", "password": "1004wecar"}, follow_redirects=True)
+    r = client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"}, follow_redirects=True)
     assert r.status_code == 200
     data = {"file": (open(FIXTURE, "rb"), "sample.csv")}
     r = client.post("/upload", data=data, content_type="multipart/form-data", follow_redirects=True)
@@ -783,7 +783,7 @@ docker compose exec db psql -U vehicle -d vehicle -c "SELECT COUNT(*) FROM vehic
 # expect 0
 ```
 
-Create API key via admin UI (http://localhost:8000) login `wecar` / `1004wecar`, then:
+Create API key via admin UI (http://localhost:8000) after `/setup` or `flask seed-admin`, then:
 
 ```bash
 curl -s -H "X-API-Key: $KEY" "http://127.0.0.1:8000/api/v1/vehicles?per_page=2"

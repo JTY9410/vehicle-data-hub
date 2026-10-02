@@ -18,7 +18,9 @@ else:
     raise SystemExit("db not ready")
 PY
 flask db upgrade
-flask seed-admin
+if [ -n "${ADMIN_USERNAME:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
+  flask seed-admin || echo "seed-admin skipped"
+fi
 # 엔카 코드가 비어 있을 때만 시드 (매 기동 전체 upsert는 gunicorn 기동을 막음)
 MAKERS=$(python - <<'PY'
 import os

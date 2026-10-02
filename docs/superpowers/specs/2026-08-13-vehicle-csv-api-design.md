@@ -49,7 +49,7 @@ CSV 크롤링 매물 데이터를 필터링해 PostgreSQL에 저장하고, 관�
 | password_hash | scrypt |
 | created_at | |
 
-Default seed (dev): `ADMIN_USERNAME` / `ADMIN_PASSWORD` from env, fallback `wecar` / `1004wecar`.
+Admin bootstrap: `ADMIN_USERNAME` / `ADMIN_PASSWORD` from env, or `/setup`. No product default password.
 
 ### 3.2 `vehicles`
 

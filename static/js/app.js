@@ -1,4 +1,39 @@
 (() => {
+  const laterKey = "pwa-install-later";
+  const banner = document.getElementById("pwa-install");
+  const installBtn = document.getElementById("pwa-install-btn");
+  const laterBtn = document.getElementById("pwa-later-btn");
+  const iosHint = document.getElementById("pwa-ios-hint");
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent || "");
+  let deferred;
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferred = event;
+    if (banner && !localStorage.getItem(laterKey)) {
+      banner.hidden = false;
+      banner.classList.remove("d-none");
+    }
+  });
+  if (banner && isIOS && !localStorage.getItem(laterKey) && !window.navigator.standalone) {
+    banner.hidden = false;
+    banner.classList.remove("d-none");
+    iosHint?.classList.remove("d-none");
+    if (installBtn) installBtn.hidden = true;
+  }
+  installBtn?.addEventListener("click", async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice;
+    deferred = null;
+    if (banner) banner.hidden = true;
+  });
+  laterBtn?.addEventListener("click", () => {
+    localStorage.setItem(laterKey, "1");
+    if (banner) banner.hidden = true;
+  });
+})();
+
+(() => {
   const ua = navigator.userAgent || "";
   const isInApp = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV/i.test(ua);
   if (!isInApp) return;

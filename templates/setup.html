@@ -1,0 +1,38 @@
+<!--
+  [UI Flow]
+  1. Auth: first admin when users table is empty
+  2. Data: POST /setup username/password
+  3. States: validation error | success → /login
+  4. Actions → login
+-->
+{% extends "base.html" %}
+{% block title %}최초 관리자 등록 · Vehicle Hub{% endblock %}
+{% block body_class %}auth-shell{% endblock %}
+{% block content %}
+<section class="login-page tw-mx-auto tw-max-w-md tw-px-4">
+  <div class="login-card glass-card">
+    <div class="text-center mb-4">
+      <span class="brand-mark brand-mark-lg">VDH</span>
+      <p class="section-kicker mt-3 mb-1">SETUP</p>
+      <h1 class="page-title">최초 관리자</h1>
+      <p class="page-subtitle mb-0">공유 초안 비밀번호 없이 이 서버의 관리자를 만듭니다.</p>
+    </div>
+    <form method="post" action="{{ url_for('admin.setup') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold" for="username">아이디</label>
+        <input class="form-control" id="username" name="username" required minlength="3" autocomplete="username" autofocus>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold" for="password">비밀번호 (10자 이상)</label>
+        <input class="form-control" id="password" name="password" type="password" required minlength="10" autocomplete="new-password">
+      </div>
+      <div class="mb-4">
+        <label class="form-label small fw-semibold" for="password_confirm">비밀번호 확인</label>
+        <input class="form-control" id="password_confirm" name="password_confirm" type="password" required minlength="10" autocomplete="new-password">
+      </div>
+      <button class="btn btn-primary w-100 btn-lg" type="submit">관리자 만들기</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

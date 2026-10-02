@@ -17,7 +17,15 @@
   <title>{% block title %}Vehicle Data Hub{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/style.css') }}?v=4" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      prefix: "tw-",
+      corePlugins: { preflight: false },
+      theme: { extend: { colors: { wecar: { DEFAULT: "#C0392B" } } } }
+    };
+  </script>
+  <link href="{{ url_for('static', filename='css/style.css') }}?v=5" rel="stylesheet">
 </head>
 <body class="app-body {% if current_user.is_authenticated %}has-side-rail{% endif %} {% block body_class %}{% endblock %}">
   {% set ep = request.endpoint or '' %}
@@ -100,7 +108,26 @@
       {% endwith %}
       {% block content %}{% endblock %}
     </main>
+    <footer class="site-footer tw-mt-8 tw-px-4 tw-py-6 tw-text-center tw-text-sm tw-text-neutral-600">
+      <p class="tw-mb-1 tw-font-semibold tw-text-neutral-800">위카모빌리티</p>
+      <p class="tw-mb-1">
+        <a class="tw-text-wecar tw-underline" href="https://www.wecarmobility.co.kr" rel="noopener noreferrer">공식 홈페이지</a>
+        ·
+        <a class="tw-text-wecar tw-underline" href="https://www.wecarmobility.co.kr" rel="noopener noreferrer">개인정보 처리방침</a>
+      </p>
+      <p class="tw-mb-0">회사 표기는 출시 전 공식 홈페이지와 대조합니다. 푸터는 본문을 가리지 않습니다.</p>
+    </footer>
   </div>
+  {% if current_user.is_authenticated %}
+  <div id="pwa-install" class="pwa-install d-none tw-fixed tw-bottom-4 tw-right-4 tw-z-20 tw-max-w-xs tw-rounded-xl tw-bg-white tw-p-4 tw-shadow-lg" hidden>
+    <p class="tw-mb-2 tw-text-sm">이 앱을 홈 화면에 설치할 수 있습니다.</p>
+    <div class="tw-flex tw-gap-2">
+      <button type="button" id="pwa-install-btn" class="btn btn-primary btn-sm">설치</button>
+      <button type="button" id="pwa-later-btn" class="btn btn-outline-secondary btn-sm">나중에</button>
+    </div>
+    <p id="pwa-ios-hint" class="tw-mt-2 tw-mb-0 tw-text-xs tw-text-neutral-500 d-none">iOS는 공유 버튼 → 홈 화면에 추가를 선택하세요.</p>
+  </div>
+  {% endif %}
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>

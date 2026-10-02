@@ -7,12 +7,14 @@ from flask import (
     redirect,
     render_template,
     request,
+    session,
     url_for,
 )
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy.orm import load_only
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
+from apps.auth import is_banned_admin_password, user_count
 from apps.extensions import db
 from apps.models import (
     ApiKey,
@@ -48,18 +50,51 @@ from apps.services.settings import (
 bp = Blueprint("admin", __name__)
 
 
+@bp.route("/setup", methods=["GET", "POST"])
+def setup():
+    if user_count():
+        return redirect(url_for("admin.login"))
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        confirm = request.form.get("password_confirm") or ""
+        if len(username) < 3 or len(password) < 10:
+            flash("아이디는 3자, 비밀번호는 10자 이상이어야 합니다.", "danger")
+        elif password != confirm:
+            flash("비밀번호 확인이 일치하지 않습니다.", "danger")
+        elif is_banned_admin_password(password):
+            flash("공유된 초안 비밀번호는 폐기되었습니다. 다른 비밀번호를 사용하세요.", "danger")
+        else:
+            db.session.add(
+                User(
+                    username=username,
+                    password_hash=generate_password_hash(password, method="scrypt"),
+                )
+            )
+            db.session.commit()
+            flash("최초 관리자를 만들었습니다. 로그인해 주세요.", "success")
+            return redirect(url_for("admin.login"))
+    return render_template("setup.html")
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
+    if not user_count():
+        return redirect(url_for("admin.setup"))
     if current_user.is_authenticated:
         return redirect(url_for("admin.dashboard"))
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
+        if is_banned_admin_password(password):
+            flash("공유된 초안 비밀번호는 폐기되었습니다. 새 비밀번호로 다시 등록하세요.", "danger")
+            return render_template("login.html")
         try:
             user = db.session.execute(
                 db.select(User).filter_by(username=username)
             ).scalar_one_or_none()
             if user and check_password_hash(user.password_hash, password):
+                session.clear()
                 login_user(user)
                 return redirect(url_for("admin.dashboard"))
             flash("아이디 또는 비밀번호가 올바르지 않습니다.", "danger")

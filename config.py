@@ -100,8 +100,8 @@ def _ensure_pooler_username(url: str) -> str:
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-change-me")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "wecar")
-    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1004wecar")
+    ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "")
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
     CRAWL_API_URL = os.environ.get(
         "CRAWL_API_URL", "https://crawl.wecarmobility.co.kr"
     )

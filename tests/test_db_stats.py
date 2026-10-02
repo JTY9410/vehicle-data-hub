@@ -74,7 +74,7 @@ def test_admin_vehicles_code_filter_orders_by_id(client, app):
             )
         )
         db.session.commit()
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     r = client.get("/vehicles?maker_no=10055")
     assert r.status_code == 200
     assert "쏘나타".encode() in r.data

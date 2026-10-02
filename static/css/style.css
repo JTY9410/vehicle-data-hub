@@ -443,3 +443,16 @@ body.auth-shell .app-stage {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+.site-footer {
+  position: static;
+  background: transparent;
+}
+
+@supports not ((backdrop-filter: blur(1px))) {
+  .glass-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--wc-bg-elevated);
+  }
+}

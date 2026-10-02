@@ -62,7 +62,7 @@ def test_admin_fuel_dropdown_and_api_alias_filter(client, app):
             )
         )
         db.session.commit()
-    client.post("/login", data={"username": "wecar", "password": "1004wecar"})
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     page = client.get("/vehicles")
     assert page.status_code == 200
     assert b'id="fuel"' in page.data

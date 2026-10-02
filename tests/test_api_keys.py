@@ -19,5 +19,5 @@ def test_seed_admin(app):
         from apps.cli import seed_admin_user
 
         seed_admin_user()
-        u = db.session.execute(db.select(User).filter_by(username="wecar")).scalar_one()
+        u = db.session.execute(db.select(User).filter_by(username="testadmin")).scalar_one()
         assert u.password_hash
