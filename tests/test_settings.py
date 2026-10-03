@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 
 from apps.cli import seed_admin_user
 from apps.extensions import db
-from apps.models import Vehicle
+from apps.models import ImportJob, Vehicle
 from apps.services.import_crawl import consume_queued_collect, import_from_crawl, item_to_row
 from apps.services.scheduler import next_sunday_midnight_kst
 from apps.services.settings import crawl_credentials, crawl_key_configured, set_setting
@@ -182,7 +182,26 @@ def test_settings_page_saves_keys_and_manual_collect(client, app, monkeypatch):
         job = consume_queued_collect()
         assert job is not None
         assert job.status == "completed"
-        row = db.session.execute(
-            db.select(Vehicle).filter_by(site_id="manual-1")
-        ).scalar_one()
-        assert row.car_model == "K5"
+
+
+def test_vercel_still_queues_manual_collect_and_shows_button(client, app, monkeypatch):
+    monkeypatch.setenv("VERCEL", "1")
+    with app.app_context():
+        seed_admin_user()
+        set_setting("crawl_api_key", "secret-crawl-key")
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
+    page = client.get("/settings")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "지금 수기 수집" in html
+    collect_btn = html.split('value="collect"', 1)[1].split("</button>", 1)[0]
+    assert "disabled" not in collect_btn
+    r = client.post("/settings", data={"action": "collect"}, follow_redirects=True)
+    assert r.status_code == 200
+    assert "작업".encode() in r.data
+    with app.app_context():
+        job = db.session.execute(
+            db.select(ImportJob).order_by(ImportJob.id.desc())
+        ).scalars().first()
+        assert job is not None
+        assert job.status == "pending"

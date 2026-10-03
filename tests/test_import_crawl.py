@@ -8,9 +8,16 @@ from apps.services.crawl_client import (
     parse_retry_after,
     retry_wait_seconds,
 )
-from apps.services.import_crawl import consume_queued_collect, import_from_crawl
+from apps.services.import_crawl import (
+    consume_queued_collect,
+    import_from_crawl,
+    recover_interrupted_jobs,
+    request_manual_collect,
+)
 from apps.services.settings import (
     CRAWL_COLLECT_NOW,
+    CRAWL_COOLDOWN_UNTIL,
+    CRAWL_RESUME_ID,
     crawl_cooldown_remaining,
     get_setting,
     set_crawl_cooldown,
@@ -409,3 +416,41 @@ def test_upload_post_queues_then_scheduler_syncs(client, app, monkeypatch):
         assert len(cars) == 1
         assert cars[0].site_id == "web-1"
         assert cars[0].car_price == 2100
+
+
+def test_get_with_retry_retries_http_500_then_succeeds():
+    calls = {"n": 0}
+
+    def flaky(_url, _headers):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise CrawlHttpError(500, "Internal Server Error")
+        return {"ok": True}
+
+    sleeps = []
+    page = _get_with_retry(flaky, "https://x", {}, sleep=sleeps.append)
+    assert page == {"ok": True}
+    assert calls["n"] == 2
+    assert sleeps
+
+
+def test_manual_collect_starts_from_beginning(app):
+    with app.app_context():
+        set_setting(CRAWL_RESUME_ID, "53986")
+        set_crawl_cooldown(600)
+        job = request_manual_collect()
+        assert job.status == "pending"
+        assert get_setting(CRAWL_RESUME_ID) is None
+        assert crawl_cooldown_remaining() == 0
+        assert get_setting(CRAWL_COLLECT_NOW) == str(job.id)
+
+
+def test_recover_interrupted_jobs_requeues_without_cooldown(app):
+    with app.app_context():
+        db.session.add(ImportJob(source="web", filename="manual", status="running"))
+        db.session.commit()
+        n = recover_interrupted_jobs()
+        assert n == 1
+        assert get_setting(CRAWL_COLLECT_NOW) == "now"
+        assert crawl_cooldown_remaining() == 0
+        assert get_setting(CRAWL_COOLDOWN_UNTIL) is None

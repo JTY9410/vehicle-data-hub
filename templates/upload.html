@@ -15,7 +15,7 @@
   렌트카 번호(하/허/호)·가격 ≤0 또는 ≥9999는 저장하지 않습니다. 가격 단위: 만원.
 </p>
 {% if on_vercel %}
-<div class="alert alert-warning">Vercel은 실행 시간 제한이 있습니다. 전량 동기화는 로컬 Docker에서 <code>flask import-crawl</code>로 실행하세요.</div>
+<div class="alert alert-warning">Vercel 요청은 스케줄러에 넘깁니다. 실제 전량 수집은 Docker가 이어서 실행합니다.</div>
 {% endif %}
 {% if not crawl_configured %}
 <div class="alert alert-warning">크롤 API 키가 없습니다. <a href="{{ url_for('admin.api_keys') }}">관리자 설정</a>에서 키를 저장하세요.</div>
@@ -29,12 +29,12 @@
   <form method="post" action="{{ url_for('admin.upload') }}" id="crawl-sync-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p class="small text-muted mb-3">실행하면 현재 저장된 차량을 모두 지우고 API 데이터를 다시 넣습니다. API 키·관리자 계정은 유지됩니다.</p>
-    <button class="btn btn-primary" type="submit"{% if on_vercel or not crawl_configured %} disabled{% endif %}>기존 데이터 삭제 후 다시 가져오기</button>
+    <button class="btn btn-primary" type="submit"{% if not crawl_configured %} disabled{% endif %}>기존 데이터 삭제 후 다시 가져오기</button>
     <button type="button" class="btn btn-outline-primary ms-2" id="openResetDialog" aria-haspopup="dialog" aria-controls="resetDataDialog">
       데이터만 초기화
     </button>
   </form>
-  {% if on_vercel or not crawl_configured %}
+  {% if not crawl_configured %}
   <script>
   document.getElementById("crawl-sync-form")?.addEventListener("submit", (e) => {
     e.preventDefault();

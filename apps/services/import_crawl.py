@@ -9,6 +9,7 @@ from apps.services.filters import should_reject_row
 from apps.services.import_csv import delete_vehicles_missing_keys, import_row_dicts
 from apps.services.settings import (
     CRAWL_COLLECT_NOW,
+    CRAWL_COOLDOWN_UNTIL,
     CRAWL_RESUME_ID,
     crawl_cooldown_remaining,
     crawl_credentials,
@@ -96,10 +97,19 @@ def find_pending_job() -> ImportJob | None:
     ).scalars().first()
 
 
+def recover_interrupted_jobs() -> int:
+    n = fail_running_jobs()
+    if n:
+        set_setting(CRAWL_COLLECT_NOW, "now")
+    return n
+
+
 def request_manual_collect() -> ImportJob:
     current = find_running_job() or find_pending_job()
     if current:
         return current
+    set_setting(CRAWL_RESUME_ID, "")
+    set_setting(CRAWL_COOLDOWN_UNTIL, "")
     job = ImportJob(source="web", filename="manual", status="pending")
     db.session.add(job)
     db.session.commit()

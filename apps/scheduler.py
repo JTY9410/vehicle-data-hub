@@ -6,7 +6,11 @@ import time
 from datetime import datetime
 
 from apps import create_app
-from apps.services.import_crawl import consume_queued_collect, import_from_crawl
+from apps.services.import_crawl import (
+    consume_queued_collect,
+    import_from_crawl,
+    recover_interrupted_jobs,
+)
 from apps.services.scheduler import next_sunday_midnight_kst
 from apps.services.settings import crawl_cooldown_remaining
 
@@ -17,15 +21,10 @@ COOLDOWN_POLL_SECONDS = 60
 def main() -> None:
     app = create_app()
     with app.app_context():
-        from apps.services.import_crawl import fail_running_jobs
-
-        n = fail_running_jobs()
+        n = recover_interrupted_jobs()
         if n:
-            from apps.services.settings import CRAWL_COLLECT_NOW, set_crawl_cooldown, set_setting
-
-            set_crawl_cooldown()
-            set_setting(CRAWL_COLLECT_NOW, "now")
-            print(f"reset running jobs={n}; cooldown then retry", flush=True)
+            print(f"reset running jobs={n}; retry without cooldown", flush=True)
+        print("scheduler ready", flush=True)
     while True:
         nxt = next_sunday_midnight_kst()
         deadline = time.monotonic() + max(1, int((nxt - datetime.now(nxt.tzinfo)).total_seconds()))

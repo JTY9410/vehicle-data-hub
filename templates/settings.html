@@ -42,10 +42,10 @@
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="collect">
-    <button class="btn btn-outline-primary" type="submit"{% if on_vercel or not crawl_configured %} disabled{% endif %}>지금 수기 수집</button>
+    <button class="btn btn-outline-primary" type="submit"{% if not crawl_configured %} disabled{% endif %}>지금 수기 수집</button>
   </form>
   {% if on_vercel %}
-  <p class="small text-warning mt-2 mb-0">Vercel에서는 전량 수집이 제한됩니다. Docker 스케줄러 또는 로컬에서 실행하세요.</p>
+  <p class="small text-muted mt-2 mb-0">버튼은 수집을 Docker 스케줄러에 넘깁니다. 진행은 작업 화면에서 확인할 수 있습니다.</p>
   {% endif %}
 </div>
 

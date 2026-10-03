@@ -433,13 +433,6 @@ def upload():
     on_vercel = bool(os.environ.get("VERCEL"))
     crawl_configured = crawl_key_configured()
     if request.method == "POST":
-        if on_vercel:
-            flash(
-                "Vercel 요청 시간 제한으로 전량 동기화는 끊길 수 있습니다. "
-                "로컬 Docker에서 flask import-crawl 을 사용하세요.",
-                "warning",
-            )
-            return redirect(url_for("admin.upload"))
         if not crawl_configured:
             flash("CRAWL_API_KEY가 설정되지 않았습니다.", "warning")
             return redirect(url_for("admin.upload"))
@@ -524,12 +517,6 @@ def api_keys():
                 flash("크롤 API 설정을 저장했습니다.", "success")
             return redirect(url_for("admin.api_keys"))
         if action == "collect":
-            if os.environ.get("VERCEL"):
-                flash(
-                    "Vercel에서는 전량 수집이 끊길 수 있습니다. Docker에서 수기 수집하세요.",
-                    "warning",
-                )
-                return redirect(url_for("admin.api_keys"))
             if not crawl_key_configured():
                 flash("크롤 API 키를 먼저 저장하세요.", "warning")
                 return redirect(url_for("admin.api_keys"))
