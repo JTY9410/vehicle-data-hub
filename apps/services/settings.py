@@ -13,6 +13,7 @@ CRAWL_COLLECT_NOW = "crawl_collect_now"
 CRAWL_RESUME_ID = "crawl_resume_id"
 CRAWL_COOLDOWN_UNTIL = "crawl_cooldown_until"
 CRAWL_429_STREAK = "crawl_429_streak"
+CRAWL_PAGE_LIMIT = "crawl_page_limit"
 DEFAULT_CRAWL_URL = "https://crawl.wecarmobility.co.kr"
 DEFAULT_COOLDOWN_SECONDS = 30 * 60
 MAX_COOLDOWN_SECONDS = 3 * 60 * 60

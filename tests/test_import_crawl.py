@@ -71,12 +71,12 @@ def test_iter_crawling_rows_paginates_by_id_and_dedupes():
                 "limit": 2,
                 "offset": 0,
             }
-        if "offset=2" in url:
+        if "offset=3" in url:
             return {
-                "datas": [_item(id=2, site_id="b"), _item(id=3, site_id="c")],
+                "datas": [_item(id=3, site_id="c")],
                 "total": 3,
                 "limit": 2,
-                "offset": 2,
+                "offset": 3,
             }
         return {"datas": [], "total": 3, "limit": 2, "offset": 99}
 
@@ -92,7 +92,7 @@ def test_iter_crawling_rows_paginates_by_id_and_dedupes():
         )
     )
     assert [r["id"] for r in rows] == [1, 2, 3]
-    assert any("offset=2" in u for u in calls)
+    assert any("offset=3" in u for u in calls)
     assert sleeps[0] == 1
     assert all(s == 1 for s in sleeps)
 
@@ -418,20 +418,134 @@ def test_upload_post_queues_then_scheduler_syncs(client, app, monkeypatch):
         assert cars[0].car_price == 2100
 
 
-def test_get_with_retry_retries_http_500_then_succeeds():
+def test_get_with_retry_does_not_repeat_http_500():
     calls = {"n": 0}
 
-    def flaky(_url, _headers):
+    def always_500(_url, _headers):
         calls["n"] += 1
-        if calls["n"] < 2:
-            raise CrawlHttpError(500, "Internal Server Error")
-        return {"ok": True}
+        raise CrawlHttpError(500, "Internal Server Error")
 
-    sleeps = []
-    page = _get_with_retry(flaky, "https://x", {}, sleep=sleeps.append)
-    assert page == {"ok": True}
-    assert calls["n"] == 2
-    assert sleeps
+    try:
+        _get_with_retry(always_500, "https://x", {}, sleep=lambda _s: None)
+    except CrawlHttpError as exc:
+        assert exc.code == 500
+    else:
+        raise AssertionError("expected 500")
+    assert calls["n"] == 1
+
+
+def _server_with_bad_id(ids, bad_id, calls=None):
+    from urllib.parse import parse_qs, urlparse
+
+    def http_get(url, _headers):
+        q = parse_qs(urlparse(url).query)
+        offset, limit = int(q["offset"][0]), int(q["limit"][0])
+        if calls is not None:
+            calls.append((offset, limit))
+        page = [i for i in ids if i >= offset][:limit]
+        if bad_id in page:
+            raise CrawlHttpError(500, "Internal Server Error")
+        return {"datas": [_item(id=i, site_id=f"s{i}") for i in page]}
+
+    return http_get
+
+
+def test_iter_crawling_rows_shrinks_page_and_skips_bad_row_on_500():
+    limits, skipped = [], []
+    rows = list(
+        iter_crawling_rows(
+            base_url="https://crawl.example.test",
+            api_key="k",
+            limit=4,
+            http_get=_server_with_bad_id([1, 2, 3, 4, 5, 6], 3),
+            on_limit=limits.append,
+            on_skip=skipped.append,
+        )
+    )
+    assert [r["id"] for r in rows] == [1, 2, 4, 5, 6]
+    assert skipped == [3]
+    assert limits[0] == 1
+
+
+def test_iter_crawling_rows_gives_up_when_every_request_fails():
+    def always_500(_url, _headers):
+        raise CrawlHttpError(500, "Internal Server Error")
+
+    skipped = []
+    try:
+        list(
+            iter_crawling_rows(
+                base_url="https://crawl.example.test",
+                api_key="k",
+                limit=1,
+                http_get=always_500,
+                on_skip=skipped.append,
+            )
+        )
+    except CrawlHttpError as exc:
+        assert exc.code == 500
+    else:
+        raise AssertionError("expected 500")
+    assert 0 < len(skipped) <= 20
+
+
+def test_import_keeps_small_page_limit_across_429_then_completes(app, monkeypatch):
+    from apps.services.settings import CRAWL_PAGE_LIMIT
+
+    ids = list(range(1, 9))
+    calls = []
+    server = _server_with_bad_id(ids, 3, calls)
+    state = {"n": 0}
+
+    def limited(url, headers):
+        state["n"] += 1
+        if state["n"] == 3:
+            raise CrawlHttpError(429, "Too many requests")
+        return server(url, headers)
+
+    monkeypatch.setattr("apps.services.crawl_client._default_http_get", limited)
+    monkeypatch.setattr("apps.services.import_crawl.PAGE_DELAY_SECONDS", 0)
+    with app.app_context():
+        set_setting("crawl_api_key", "k")
+        try:
+            import_from_crawl(source="cli", replace=False)
+        except RuntimeError as exc:
+            assert "429" in str(exc)
+        else:
+            raise AssertionError("expected 429")
+        assert get_setting(CRAWL_PAGE_LIMIT) == "125"
+        assert get_setting(CRAWL_COLLECT_NOW) == "now"
+
+        set_setting(CRAWL_COOLDOWN_UNTIL, "")
+        calls.clear()
+        job = import_from_crawl(source="cli", replace=False)
+        assert job.status == "completed"
+        assert calls[0][1] == 125
+        saved = {
+            v.source_id for v in db.session.execute(db.select(Vehicle)).scalars()
+        }
+        assert saved == {"1", "2", "4", "5", "6", "7", "8"}
+        assert get_setting(CRAWL_PAGE_LIMIT) is None
+        assert get_setting(CRAWL_RESUME_ID) is None
+
+
+def test_non_429_failure_requeues_with_cooldown(app):
+    with app.app_context():
+        set_setting(CRAWL_RESUME_ID, "300")
+
+        def boom():
+            raise CrawlHttpError(500, "Internal Server Error")
+            yield
+
+        try:
+            import_from_crawl(source="cli", fetch_rows=boom, replace=False)
+        except RuntimeError as exc:
+            assert "500" in str(exc)
+        else:
+            raise AssertionError("expected 500")
+        assert get_setting(CRAWL_RESUME_ID) == "300"
+        assert get_setting(CRAWL_COLLECT_NOW) == "now"
+        assert crawl_cooldown_remaining() >= 60
 
 
 def test_manual_collect_catches_up_from_latest_source_id(app):

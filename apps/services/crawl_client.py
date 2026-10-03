@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 DEFAULT_LIMIT = 2000
 DEFAULT_429_WAIT = 60
 MAX_429_WAIT = 120
+MAX_CONSECUTIVE_SKIPS = 20
 
 
 class CrawlHttpError(RuntimeError):
@@ -51,7 +52,7 @@ def _default_http_get(url: str, headers: dict) -> dict:
 
 def _transient_http(exc: BaseException) -> bool:
     msg = str(exc)
-    if any(code in msg for code in ("HTTP 500", "HTTP 502", "HTTP 503")):
+    if any(code in msg for code in ("HTTP 502", "HTTP 503")):
         return True
     if "연결 실패" in msg or "name resolution" in msg:
         return True
@@ -82,21 +83,47 @@ def iter_crawling_rows(
     http_get=None,
     page_delay: float = 0.0,
     start_offset: int = 0,
+    start_limit: int | None = None,
     sleep=time.sleep,
+    on_limit=None,
+    on_skip=None,
 ):
-    """GET /api/crawling 을 id offset 커서로 모두 순회. 중복 id는 건너뛴다."""
+    """GET /api/crawling 을 id offset 커서로 모두 순회. 중복 id는 건너뛴다.
+
+    offset은 "이 id부터"(포함)라서 다음 페이지는 마지막 id + 1부터 요청한다.
+    크롤 서버가 특정 행 때문에 500을 내면 페이지를 줄여 좁히고, 1건도 실패하면 그 id를 건너뛴다.
+    """
     get = http_get or _default_http_get
     offset = max(0, int(start_offset))
+    page_limit = max(1, min(limit, int(start_limit or limit)))
+    skips = 0
     seen_ids: set[int] = set()
     headers = {"x-api-key": api_key, "accept": "application/json"}
     while True:
-        url = f"{base_url.rstrip('/')}/api/crawling?offset={offset}&limit={limit}"
-        page = _get_with_retry(get, url, headers)
+        url = f"{base_url.rstrip('/')}/api/crawling?offset={offset}&limit={page_limit}"
+        try:
+            page = _get_with_retry(get, url, headers, sleep=sleep)
+        except CrawlHttpError as exc:
+            if exc.code != 500:
+                raise
+            if page_limit > 1:
+                page_limit = max(1, page_limit // 4)
+                if on_limit:
+                    on_limit(page_limit)
+                continue
+            skips += 1
+            if skips > MAX_CONSECUTIVE_SKIPS:
+                raise
+            if on_skip:
+                on_skip(offset)
+            offset += 1
+            continue
+        skips = 0
         datas = page.get("datas") or []
         if not datas:
             break
         yielded = 0
-        max_id = offset
+        max_id = offset - 1
         for item in datas:
             raw_id = item.get("id")
             if raw_id is not None:
@@ -107,8 +134,12 @@ def iter_crawling_rows(
                 seen_ids.add(item_id)
             yield item
             yielded += 1
-        if yielded == 0 or len(datas) < limit or max_id <= offset:
+        if yielded == 0 or len(datas) < page_limit or max_id < offset:
             break
-        offset = max_id
+        offset = max_id + 1
+        if page_limit < limit:
+            page_limit = min(limit, page_limit * 2)
+            if on_limit:
+                on_limit(page_limit)
         if page_delay:
             sleep(page_delay)

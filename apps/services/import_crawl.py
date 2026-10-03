@@ -10,7 +10,9 @@ from apps.services.import_csv import delete_vehicles_missing_keys, import_row_di
 from apps.services.settings import (
     CRAWL_429_STREAK,
     CRAWL_COLLECT_NOW,
+    CRAWL_PAGE_LIMIT,
     CRAWL_RESUME_ID,
+    DEFAULT_COOLDOWN_SECONDS,
     MAX_COOLDOWN_SECONDS,
     crawl_cooldown_remaining,
     crawl_credentials,
@@ -178,19 +180,24 @@ def import_from_crawl(
     if running and (job is None or running.id != job.id):
         raise RuntimeError(f"이미 수집 중 (작업 #{running.id})")
     started_from = 0
+    skipped_ids: list[int] = []
     if fetch_rows is None:
         base_url, api_key = crawl_credentials()
         if not api_key:
             raise RuntimeError("CRAWL_API_KEY가 설정되지 않았습니다.")
         started_from = crawl_start_offset()
+        start_limit = get_setting(CRAWL_PAGE_LIMIT)
 
         def fetch_rows():
             yield from iter_crawling_rows(
                 base_url=base_url,
                 api_key=api_key,
                 limit=DEFAULT_LIMIT,
+                start_limit=int(start_limit) if start_limit and start_limit.isdigit() else None,
                 page_delay=PAGE_DELAY_SECONDS,
-                start_offset=started_from,
+                start_offset=started_from + 1 if started_from else 0,
+                on_limit=lambda n: set_setting(CRAWL_PAGE_LIMIT, str(n)),
+                on_skip=skipped_ids.append,
             )
 
     if job is None:
@@ -243,6 +250,8 @@ def import_from_crawl(
             raw_id = item.get("id")
             if raw_id is not None:
                 last_id = max(last_id, int(raw_id))
+            if skipped_ids:
+                last_id = max(last_id, skipped_ids[-1])
             buf.append(item_to_row(item))
             if len(buf) >= DEFAULT_LIMIT:
                 _flush(buf)
@@ -255,6 +264,8 @@ def import_from_crawl(
             _flush(buf)
             buf = []
     except Exception as exc:  # noqa: BLE001
+        if skipped_ids:
+            last_id = max(last_id, skipped_ids[-1])
         if buf:
             _flush(buf)
             if last_id:
@@ -269,11 +280,15 @@ def import_from_crawl(
             streak = int(get_setting(CRAWL_429_STREAK) or 0) + 1
             set_setting(CRAWL_429_STREAK, str(streak))
             set_crawl_cooldown(min(MAX_COOLDOWN_SECONDS, 30 * 60 * streak))
-            set_setting(CRAWL_COLLECT_NOW, "now")
-            job.error_message = (
-                f"크롤 API 한도. {max(1, crawl_cooldown_remaining() // 60)}분 후 "
-                f"id {last_id or started_from}부터 이어서 재시도"
-            )
+            reason = "크롤 API 한도"
+        else:
+            set_crawl_cooldown(DEFAULT_COOLDOWN_SECONDS)
+            reason = f"수집 실패({exc})"
+        set_setting(CRAWL_COLLECT_NOW, "now")
+        job.error_message = (
+            f"{reason}. {max(1, crawl_cooldown_remaining() // 60)}분 후 "
+            f"id {last_id or started_from}부터 이어서 재시도"
+        )
         db.session.commit()
         raise
 
@@ -281,8 +296,11 @@ def import_from_crawl(
         delete_vehicles_missing_keys(kept)
     set_setting(CRAWL_RESUME_ID, "")
     set_setting(CRAWL_429_STREAK, "")
+    set_setting(CRAWL_PAGE_LIMIT, "")
     job.status = "completed"
-    job.error_message = None
+    job.error_message = (
+        f"크롤 서버 500으로 건너뛴 id: {', '.join(map(str, skipped_ids))}" if skipped_ids else None
+    )
     job.finished_at = utcnow()
     db.session.commit()
     return job
