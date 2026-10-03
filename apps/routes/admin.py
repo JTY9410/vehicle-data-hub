@@ -14,7 +14,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy.orm import load_only
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from apps.auth import is_banned_admin_password, user_count
+from apps.auth import user_count
 from apps.extensions import db
 from apps.models import (
     ApiKey,
@@ -62,8 +62,6 @@ def setup():
             flash("아이디는 3자, 비밀번호는 10자 이상이어야 합니다.", "danger")
         elif password != confirm:
             flash("비밀번호 확인이 일치하지 않습니다.", "danger")
-        elif is_banned_admin_password(password):
-            flash("공유된 초안 비밀번호는 폐기되었습니다. 다른 비밀번호를 사용하세요.", "danger")
         else:
             db.session.add(
                 User(
@@ -86,9 +84,6 @@ def login():
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
-        if is_banned_admin_password(password):
-            flash("공유된 초안 비밀번호는 폐기되었습니다. 새 비밀번호로 다시 등록하세요.", "danger")
-            return render_template("login.html")
         try:
             user = db.session.execute(
                 db.select(User).filter_by(username=username)

@@ -1,7 +1,6 @@
 from flask import current_app
 from werkzeug.security import generate_password_hash
 
-from apps.auth import is_banned_admin_password
 from apps.extensions import db
 from apps.models import User
 
@@ -17,8 +16,6 @@ def seed_admin_user(*, force_password: bool = False) -> User:
         raise RuntimeError(
             "ADMIN_USERNAME과 ADMIN_PASSWORD가 없으면 시드하지 않습니다. /setup 을 사용하세요."
         )
-    if is_banned_admin_password(password):
-        raise RuntimeError("공유된 초안 비밀번호는 폐기되었습니다. 새 비밀번호를 설정하세요.")
     user = db.session.execute(
         db.select(User).filter_by(username=username)
     ).scalar_one_or_none()
