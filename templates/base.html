@@ -61,11 +61,17 @@
         </span>
         <span class="side-rail-label">DB</span>
       </a>
-      <a href="{{ url_for('admin.api_keys') }}" class="side-rail-item {% if ep and ('api_keys' in ep or 'settings' in ep) %}active{% endif %}" title="관리자">
+      <a href="{{ url_for('admin.api_keys') }}" class="side-rail-item {% if ep in ('admin.api_keys',) or (ep and 'settings' in ep) %}active{% endif %}" title="API 키">
         <span class="side-rail-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="12" r="3"/><path d="M11 12h9"/><path d="M17 12v2"/><path d="M20 12v3"/></svg>
         </span>
-        <span class="side-rail-label">관리자</span>
+        <span class="side-rail-label">API 키</span>
+      </a>
+      <a href="{{ url_for('admin.api_docs') }}" class="side-rail-item {% if ep in ('admin.api_docs', 'admin.api_openapi') %}active{% endif %}" title="API 명세서">
+        <span class="side-rail-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/></svg>
+        </span>
+        <span class="side-rail-label">명세서</span>
       </a>
     </nav>
     <div class="side-rail-footer">

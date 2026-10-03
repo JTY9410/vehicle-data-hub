@@ -15,7 +15,8 @@
     <p class="page-subtitle mb-0">타 프로그램에서 차량 데이터를 조회할 때 이 문서를 기준으로 호출하면 됩니다.</p>
   </div>
   <div class="d-flex gap-2">
-    <button type="button" class="btn btn-primary" onclick="window.print()">명세서 출력</button>
+    <a class="btn btn-primary" href="{{ url_for('admin.api_openapi') }}" download="vehicle-hub-openapi.json">명세서 생성 (OpenAPI)</a>
+    <button type="button" class="btn btn-outline-primary" onclick="window.print()">명세서 출력</button>
     <a class="btn btn-outline-secondary" href="{{ url_for('admin.api_keys') }}">API 키로</a>
   </div>
 </div>

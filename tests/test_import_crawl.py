@@ -434,15 +434,57 @@ def test_get_with_retry_retries_http_500_then_succeeds():
     assert sleeps
 
 
-def test_manual_collect_starts_from_beginning(app):
+def test_manual_collect_catches_up_from_latest_source_id(app):
     with app.app_context():
-        set_setting(CRAWL_RESUME_ID, "53986")
-        set_crawl_cooldown(600)
+        db.session.add(
+            Vehicle(
+                site_type="encar",
+                site_id="catch-1",
+                source_id="500",
+                car_no="12가0500",
+                car_price=1000,
+            )
+        )
+        db.session.commit()
+        set_setting(CRAWL_RESUME_ID, "100")
         job = request_manual_collect()
         assert job.status == "pending"
-        assert get_setting(CRAWL_RESUME_ID) is None
-        assert crawl_cooldown_remaining() == 0
+        assert get_setting(CRAWL_RESUME_ID) == "500"
         assert get_setting(CRAWL_COLLECT_NOW) == str(job.id)
+
+
+def test_429_keeps_resume_id(app):
+    with app.app_context():
+        set_setting(CRAWL_RESUME_ID, "220")
+
+        def boom():
+            raise RuntimeError("crawl API HTTP 429: Too many requests")
+            yield
+
+        try:
+            import_from_crawl(source="cli", fetch_rows=boom, replace=True)
+        except RuntimeError as exc:
+            assert "429" in str(exc)
+        else:
+            raise AssertionError("expected crawl 429")
+        assert get_setting(CRAWL_RESUME_ID) == "220"
+        assert crawl_cooldown_remaining() >= 60
+
+
+def test_get_with_retry_retries_dns_failure():
+    calls = {"n": 0}
+
+    def flaky(_url, _headers):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise RuntimeError("crawl API 연결 실패: [Errno -3] Temporary failure in name resolution")
+        return {"ok": True}
+
+    sleeps = []
+    page = _get_with_retry(flaky, "https://x", {}, sleep=sleeps.append)
+    assert page == {"ok": True}
+    assert calls["n"] == 2
+    assert sleeps
 
 
 def test_recover_interrupted_jobs_requeues_without_cooldown(app):

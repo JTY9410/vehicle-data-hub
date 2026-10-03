@@ -19,6 +19,8 @@
   </div>
   <div class="glass-card p-4 d-flex flex-column justify-content-center gap-2">
     <a class="btn btn-primary" href="{{ url_for('admin.vehicles') }}">데이터 보기</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('admin.api_keys') }}">API 키</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('admin.api_docs') }}">API 명세서</a>
     <button type="button" class="btn btn-outline-primary" id="openResetDialog" aria-haspopup="dialog" aria-controls="resetDataDialog">
       데이터 초기화
     </button>

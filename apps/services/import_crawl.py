@@ -8,9 +8,10 @@ from apps.services.crawl_client import DEFAULT_LIMIT, iter_crawling_rows
 from apps.services.filters import should_reject_row
 from apps.services.import_csv import delete_vehicles_missing_keys, import_row_dicts
 from apps.services.settings import (
+    CRAWL_429_STREAK,
     CRAWL_COLLECT_NOW,
-    CRAWL_COOLDOWN_UNTIL,
     CRAWL_RESUME_ID,
+    MAX_COOLDOWN_SECONDS,
     crawl_cooldown_remaining,
     crawl_credentials,
     get_setting,
@@ -104,12 +105,39 @@ def recover_interrupted_jobs() -> int:
     return n
 
 
+def max_numeric_source_id() -> int:
+    from apps.models import Vehicle
+
+    values = db.session.execute(
+        db.select(Vehicle.source_id).where(Vehicle.source_id.is_not(None))
+    ).scalars().all()
+    best = 0
+    for raw in values:
+        try:
+            best = max(best, int(str(raw).strip()))
+        except ValueError:
+            continue
+    return best
+
+
+def crawl_start_offset() -> int:
+    resume = 0
+    raw = get_setting(CRAWL_RESUME_ID)
+    if raw:
+        try:
+            resume = int(raw)
+        except ValueError:
+            resume = 0
+    return max(resume, max_numeric_source_id())
+
+
 def request_manual_collect() -> ImportJob:
     current = find_running_job() or find_pending_job()
     if current:
         return current
-    set_setting(CRAWL_RESUME_ID, "")
-    set_setting(CRAWL_COOLDOWN_UNTIL, "")
+    offset = crawl_start_offset()
+    if offset:
+        set_setting(CRAWL_RESUME_ID, str(offset))
     job = ImportJob(source="web", filename="manual", status="pending")
     db.session.add(job)
     db.session.commit()
@@ -154,7 +182,7 @@ def import_from_crawl(
         base_url, api_key = crawl_credentials()
         if not api_key:
             raise RuntimeError("CRAWL_API_KEY가 설정되지 않았습니다.")
-        started_from = int(get_setting(CRAWL_RESUME_ID) or 0)
+        started_from = crawl_start_offset()
 
         def fetch_rows():
             yield from iter_crawling_rows(
@@ -235,11 +263,16 @@ def import_from_crawl(
         job.status = "failed"
         job.error_message = str(exc)
         job.finished_at = utcnow()
+        if last_id:
+            set_setting(CRAWL_RESUME_ID, str(last_id))
         if "HTTP 429" in str(exc):
-            set_crawl_cooldown()
+            streak = int(get_setting(CRAWL_429_STREAK) or 0) + 1
+            set_setting(CRAWL_429_STREAK, str(streak))
+            set_crawl_cooldown(min(MAX_COOLDOWN_SECONDS, 30 * 60 * streak))
             set_setting(CRAWL_COLLECT_NOW, "now")
             job.error_message = (
-                f"크롤 API 한도. {max(1, crawl_cooldown_remaining() // 60)}분 후 자동 재시도"
+                f"크롤 API 한도. {max(1, crawl_cooldown_remaining() // 60)}분 후 "
+                f"id {last_id or started_from}부터 이어서 재시도"
             )
         db.session.commit()
         raise
@@ -247,6 +280,7 @@ def import_from_crawl(
     if replace and started_from == 0:
         delete_vehicles_missing_keys(kept)
     set_setting(CRAWL_RESUME_ID, "")
+    set_setting(CRAWL_429_STREAK, "")
     job.status = "completed"
     job.error_message = None
     job.finished_at = utcnow()

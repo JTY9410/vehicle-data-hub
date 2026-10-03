@@ -53,6 +53,8 @@ def _transient_http(exc: BaseException) -> bool:
     msg = str(exc)
     if any(code in msg for code in ("HTTP 500", "HTTP 502", "HTTP 503")):
         return True
+    if "연결 실패" in msg or "name resolution" in msg:
+        return True
     return "HTTP 429" in msg and getattr(exc, "retry_after", None) is not None
 
 

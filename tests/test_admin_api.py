@@ -12,6 +12,24 @@ def test_db_stats_requires_login(client):
     assert client.get("/db-stats").status_code in (302, 401)
 
 
+def test_admin_api_key_and_spec_pages(client, app):
+    with app.app_context():
+        seed_admin_user()
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
+    keys = client.get("/api-keys")
+    assert keys.status_code == 200
+    assert "API 키".encode() in keys.data
+    docs = client.get("/api-keys/docs")
+    assert docs.status_code == 200
+    assert "명세서".encode() in docs.data
+    assert "openapi.json".encode() in docs.data
+    spec = client.get("/api-keys/openapi.json")
+    assert spec.status_code == 200
+    body = spec.get_json()
+    assert str(body.get("openapi", "")).startswith("3.")
+    assert "/vehicles" in body.get("paths", {})
+
+
 def test_api_key_title_reveal_and_copy_payload(client, app):
     with app.app_context():
         seed_admin_user()

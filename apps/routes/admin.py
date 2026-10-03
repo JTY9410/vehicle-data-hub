@@ -553,6 +553,16 @@ def api_docs():
     return render_template("api_docs.html")
 
 
+@bp.get("/api-keys/openapi.json")
+@login_required
+def api_openapi():
+    from flask import jsonify
+
+    from apps.services.openapi import vehicle_openapi_spec
+
+    return jsonify(vehicle_openapi_spec())
+
+
 @bp.post("/api-keys/<int:key_id>/revoke")
 @login_required
 def api_keys_revoke(key_id: int):
