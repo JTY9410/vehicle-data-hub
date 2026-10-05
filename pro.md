@@ -45,3 +45,10 @@ Cursor와 후속 개발자용 · 2026-09-27 공통 기준을 이 저장소(Vehic
 2. 기존 컴포넌트를 재사용하고 작게 구현한다.
 3. pytest와 핵심 흐름을 검증한다.
 4. README만으로 실행·설정·마이그레이션·테스트가 가능해야 한다.
+
+## 7. Hub ↔ PM 경계
+
+매물·엔카 코드 원천은 이 허브, 시세·기준가·MFA·AI·파트너 API는 WeCar PM이다.  
+상세·금지·계약·체크리스트: [`docs/architecture-boundaries.md`](docs/architecture-boundaries.md).  
+Cursor 복붙 프롬프트: [`docs/cursor-hub-tasks.md`](docs/cursor-hub-tasks.md).  
+두 앱을 하나로 합치거나, 기준가 테이블을 Hub에 넣거나, PM이 크롤 API로 Hub를 우회하게 하지 않는다.

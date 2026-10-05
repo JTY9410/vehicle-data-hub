@@ -1,13 +1,33 @@
 ---
-description: Read pro.md before changing this Flask vehicle hub
+description: Vehicle Data Hub — stack, layout, Hub↔PM boundaries (concrete)
 alwaysApply: true
 ---
 
 # Vehicle Data Hub
 
-작업 전에 `pro.md`와 실제 요구사항을 읽는다.
+작업 전: `pro.md` → `docs/architecture-boundaries.md` → (API면) PM `요구사항.md` #56~#62 → `docs/cursor-hub-tasks.md`.
 
-- Flask/Jinja/Bootstrap 5.3.8 유지. Tailwind는 prefix `tw-`, preflight off.
-- 고정 관리자 비밀번호를 코드·README·예제에 넣지 않는다. 최초 계정은 `/setup` 또는 env + `flask seed-admin`.
-- 확인되지 않은 업무 테이블(AI, MFA 등)을 미리 만들지 않는다.
-- `apps/routes`와 `apps/services`를 `app/modules`로 옮기지 않는다.
+## 스택·레이아웃
+
+- Flask/Jinja/Bootstrap 5.3.8. Tailwind prefix `tw-`, preflight off.
+- 구조 유지: `apps/routes/` · `apps/services/` (ADR 001). `app/modules/`로 이전 금지.
+- 고정 관리자 비밀번호를 코드·README에 넣지 않음. `/setup` 또는 env + seed.
+- AI/MFA/audit 제품 테이블을 Hub에 미리 만들지 않음.
+
+## 소유 (이 레포)
+
+- 모델: `apps/models.py` → `vehicles`, `vehicle_maker|model|model_detail|grade|grade_detail`, `api_keys`, `import_jobs`, `app_settings`, `users`.
+- 적재: `apps/services/import_csv.py`, `import_crawl.py`, `crawl_client.py`.
+- 필터 SSOT: `apps/services/filters.py` — 렌트 `하/허/호`, 가격 ≤0 또는 ≥9999.
+- 코드 CSV: `data/encar_codes/*.csv` + `encar_seed.py`.
+- 공개 API: `apps/routes/api.py` — `GET /api/v1/vehicles`, `/vehicles/search`, `/vehicles/<db_id>`, `X-API-Key`, `price_unit=만원`.
+- Env: `DATABASE_URL`, `CRAWL_API_URL`, `CRAWL_API_KEY`, `API_PER_PAGE_MAX` (`.env.example`).
+
+## Hub ↔ PM
+
+- 경계 SSOT: `docs/architecture-boundaries.md`.
+- 금지: `listings`/`base_prices`/`partner_api_keys`/AI/MFA 테이블·시세 서비스·`/api/v1/price/*`.
+- 금지: PM과 DB URL 공유 write; PM이 크롤 API 직접 호출하도록 유도.
+- vehicles 계약 변경 시 PM `hub_client.py` · `listing_sync.py` · #58 고지.
+- admin `/api/codes/*` ≠ 공개 API Key codes. 공개 `GET /api/v1/codes/*`는 백로그.
+- 비밀값·실 API Key 로그/커밋 금지.
