@@ -1,21 +1,17 @@
 <!--
   [UI Flow]
   1. Auth required
-  2. Data: GET/POST /api-keys · GET /api-keys/:id/reveal
-  3. States: list | dialog key | missing secret
-  4. Actions → reveal / copy / revoke
+  2. Data: GET/POST /api-keys · GET /api-keys/:id/reveal · GET /api-keys/openapi.json · GET /api-keys/spec.md
+  3. States: list | just issued | dialog key | missing secret
+  4. Actions → 키 발급 / reveal / copy / revoke · 명세서 OpenAPI·Markdown 다운로드 / 출력
 -->
 {% extends "base.html" %}
-{% block title %}API 키 · Vehicle Hub{% endblock %}
+{% block title %}API 명세서·키 발급 · Vehicle Hub{% endblock %}
 {% block content %}
-<p class="section-kicker mb-1">ACCESS</p>
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
-  <div>
-    <h1 class="page-title">API 키</h1>
-    <p class="page-subtitle mb-0">키 <strong>이름</strong>을 클릭하면 팝업에서 전체 키를 보고 복사할 수 있습니다. 타 프로그램은 <code>X-API-Key</code> 또는 <code>Authorization: Bearer</code>로 호출합니다.</p>
-  </div>
-  <a class="btn btn-outline-primary" href="{{ url_for('admin.api_docs') }}">API 명세서</a>
-</div>
+<div class="no-print">
+<p class="section-kicker mb-1">API</p>
+<h1 class="page-title">API 명세서·키 발급</h1>
+<p class="page-subtitle">타 프로그램·문서에서 차량 데이터를 API로 연결할 때 필요한 <strong>API 키</strong>와 <strong>명세서</strong>를 이 화면에서 한 번에 발급합니다.</p>
 
 {% if plaintext %}
 <div class="alert alert-warning glass-card">
@@ -25,20 +21,40 @@
 </div>
 {% endif %}
 
-<div class="glass-card p-4">
-  <form method="post" class="row g-2 align-items-end">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="col-md-8">
-      <label class="form-label small fw-semibold" for="name">키 이름</label>
-      <input class="form-control" id="name" name="name" required placeholder="예: partner-app">
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="glass-card p-4 h-100">
+      <h2 class="h5 mb-1">1. API 키 발급</h2>
+      <p class="small text-muted">연결할 프로그램 이름으로 발급합니다. 호출 시 <code>X-API-Key</code> 또는 <code>Authorization: Bearer</code> 헤더에 넣습니다.</p>
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-sm-8">
+          <label class="form-label small fw-semibold" for="name">키 이름</label>
+          <input class="form-control" id="name" name="name" required placeholder="예: partner-app">
+        </div>
+        <div class="col-sm-4">
+          <button class="btn btn-primary w-100" type="submit">키 발급</button>
+        </div>
+      </form>
     </div>
-    <div class="col-md-4">
-      <button class="btn btn-primary w-100" type="submit">발급</button>
+  </div>
+  <div class="col-lg-6">
+    <div class="glass-card p-4 h-100">
+      <h2 class="h5 mb-1">2. API 명세서 발급</h2>
+      <p class="small text-muted">Base URL <code>{{ base_url }}</code> 기준으로 생성합니다. 다른 문서에는 Markdown을, Swagger·Postman 등 도구에는 OpenAPI를 씁니다.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" href="{{ url_for('admin.api_spec_md') }}">Markdown 다운로드</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('admin.api_openapi') }}" download="vehicle-hub-openapi.json">OpenAPI JSON 다운로드</a>
+        <button type="button" class="btn btn-outline-primary" onclick="window.print()">출력 · PDF 저장</button>
+        <a class="btn btn-outline-secondary" href="#spec">명세서 보기</a>
+      </div>
     </div>
-  </form>
+  </div>
 </div>
 
-<div class="glass-card p-4 mt-4">
+<div class="glass-card p-4 mb-4">
+  <h2 class="h5 mb-3">발급된 키</h2>
+  <p class="small text-muted">키 <strong>이름</strong>을 클릭하면 전체 키를 보고 복사할 수 있습니다.</p>
   <div class="wc-table-wrap">
     <table class="wc-table">
       <thead><tr><th>이름</th><th>접두사</th><th>상태</th><th>마지막 사용</th><th></th></tr></thead>
@@ -67,6 +83,91 @@
     </table>
   </div>
 </div>
+</div>
+
+<article class="glass-card p-4 api-spec" id="spec">
+  <p class="section-kicker mb-1">SPEC · v{{ spec.info.version }}</p>
+  <h2 class="h3">{{ spec.info.title }} 명세서</h2>
+  <p>{{ spec.info.description }}</p>
+
+  <h3 class="h5 mt-4">1. 인증</h3>
+  <p>모든 요청에 아래 헤더 중 <strong>하나</strong>를 넣습니다. 키가 없거나 폐기되면 <code>401</code> <code>{"error":"unauthorized"}</code>.</p>
+  <pre class="bg-light p-3 rounded"><code>X-API-Key: &lt;발급받은_API_키&gt;
+Authorization: Bearer &lt;발급받은_API_키&gt;</code></pre>
+
+  <h3 class="h5 mt-4">2. Base URL</h3>
+  <pre class="bg-light p-3 rounded"><code>{{ base_url }}</code></pre>
+
+  <h3 class="h5 mt-4">3. 공통 규칙</h3>
+  <ul>
+    <li>JSON(UTF-8), 읽기 전용 <code>GET</code>, CORS 허용.</li>
+    <li>가격 <code>car_price</code>는 <strong>만원</strong> 정수, 응답마다 <code>price_unit: "만원"</code>.</li>
+    <li>목록·검색 기본 응답에는 긴 텍스트 필드가 없습니다. <code>include=text</code> 또는 상세 API를 쓰세요.</li>
+    <li><code>per_page</code> 기본 20, 최대 {{ config.API_PER_PAGE_MAX }} (<code>include=text</code>일 때 {{ config.API_PER_PAGE_MAX_WITH_TEXT }}).</li>
+    <li>렌트 번호(하/허/호), 가격 0 이하 또는 9999 이상 매물은 저장하지 않습니다.</li>
+  </ul>
+
+  <h3 class="h5 mt-4">4. 엔드포인트</h3>
+  {% for path, item in spec.paths.items() %}{% set op = item["get"] %}
+  <h4 class="h6 mt-3">GET /api/v1{{ path }} — {{ op.summary }}</h4>
+  <p class="small mb-2">{{ op.description }}</p>
+  <div class="wc-table-wrap mb-2">
+    <table class="wc-table">
+      <thead><tr><th>파라미터</th><th>위치</th><th>타입</th><th>필수</th><th>설명</th></tr></thead>
+      <tbody>
+      {% for p in op.parameters %}
+        <tr><td><code>{{ p.name }}</code></td><td>{{ p["in"] }}</td><td>{{ p.schema.type }}</td><td>{{ "필수" if p.required else "선택" }}</td><td>{{ p.description }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="small text-muted">응답: {% for code, r in op.responses.items() %}<code>{{ code }}</code> {{ r.description }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+  {% endfor %}
+
+  <h3 class="h5 mt-4">5. 차량 필드</h3>
+  <div class="wc-table-wrap">
+    <table class="wc-table">
+      <thead><tr><th>필드</th><th>설명</th><th>비고</th></tr></thead>
+      <tbody>
+      {% for name, desc, is_text in fields %}
+        <tr><td><code>{{ name }}</code></td><td>{{ desc }}</td><td>{{ "include=text 또는 상세" if is_text else "" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="h5 mt-4">6. 연동 예제</h3>
+  <pre class="bg-light p-3 rounded"><code>curl -H "X-API-Key: YOUR_KEY" "{{ base_url }}/vehicles?page=1&amp;per_page=20"</code></pre>
+  <pre class="bg-light p-3 rounded"><code>import requests
+r = requests.get(
+    "{{ base_url }}/vehicles",
+    headers={"X-API-Key": "YOUR_KEY"},
+    params={"page": 1, "per_page": 20},
+    timeout=30,
+)
+r.raise_for_status()
+items = r.json()["items"]</code></pre>
+
+  <h3 class="h5 mt-4">7. 증분 동기화</h3>
+  <ol class="mb-0">
+    <li>최초: <code>page</code>를 1부터 늘려 <code>items</code>가 빌 때까지 받습니다.</li>
+    <li>이후: 마지막 동기화 날짜를 <code>created_at_from=YYYY-MM-DD</code>로 넘겨 새 매물만 받습니다.</li>
+    <li>유일 키는 <code>site_type</code> + <code>site_id</code>, 상세 조회는 <code>db_id</code>.</li>
+  </ol>
+</article>
+
+<style>
+@media print {
+  .side-rail, .top-bar, .no-print, .site-footer, #inapp-escape { display: none !important; }
+  .app-body { display: block !important; }
+  .app-content { padding: 0 !important; }
+  .glass-card {
+    box-shadow: none !important;
+    border: none !important;
+    backdrop-filter: none !important;
+  }
+}
+</style>
 {% endblock %}
 
 {% block body_end %}

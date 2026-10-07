@@ -12,22 +12,86 @@ def test_db_stats_requires_login(client):
     assert client.get("/db-stats").status_code in (302, 401)
 
 
-def test_admin_api_key_and_spec_pages(client, app):
+def test_unified_api_spec_and_key_page(client, app):
     with app.app_context():
         seed_admin_user()
     client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
-    keys = client.get("/api-keys")
-    assert keys.status_code == 200
-    assert "API 키".encode() in keys.data
+    page = client.get("/api-keys")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "API 명세서·키 발급" in html
+    assert 'name="name"' in html
+    assert "/api-keys/openapi.json" in html
+    assert "/api-keys/spec.md" in html
+    assert 'id="spec"' in html
+    assert "created_at_from" in html
+
     docs = client.get("/api-keys/docs")
-    assert docs.status_code == 200
-    assert "명세서".encode() in docs.data
-    assert "openapi.json".encode() in docs.data
-    spec = client.get("/api-keys/openapi.json")
-    assert spec.status_code == 200
-    body = spec.get_json()
-    assert str(body.get("openapi", "")).startswith("3.")
-    assert "/vehicles" in body.get("paths", {})
+    assert docs.status_code == 302
+    assert docs.headers["Location"].endswith("/api-keys#spec")
+
+
+def test_openapi_spec_documents_list_params_and_errors(client, app):
+    with app.app_context():
+        seed_admin_user()
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
+    body = client.get("/api-keys/openapi.json").get_json()
+    assert str(body["openapi"]).startswith("3.")
+    list_op = body["paths"]["/vehicles"]["get"]
+    names = {p["name"] for p in list_op["parameters"]}
+    assert {"page", "per_page", "include", "maker_no", "created_at_from", "fuel"} <= names
+    assert "401" in list_op["responses"]
+    assert "404" in body["paths"]["/vehicles/{vehicle_id}"]["get"]["responses"]
+    vehicle = body["components"]["schemas"]["Vehicle"]["properties"]
+    assert vehicle["car_price"]["type"] == "integer"
+    assert vehicle["car_seat"]["description"]
+
+
+def test_markdown_spec_download_for_other_documents(client, app):
+    with app.app_context():
+        seed_admin_user()
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
+    r = client.get("/api-keys/spec.md")
+    assert r.status_code == 200
+    assert r.mimetype == "text/markdown"
+    assert "attachment" in r.headers["Content-Disposition"]
+    md = r.get_data(as_text=True)
+    assert md.startswith("# Vehicle Data Hub API")
+    assert "X-API-Key" in md
+    assert "GET /api/v1/vehicles" in md
+    assert "| `car_seat` |" in md
+    assert "http://localhost/api/v1" in md
+
+
+def test_settings_page_keeps_only_crawl_settings(client, app):
+    with app.app_context():
+        seed_admin_user()
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
+    html = client.get("/settings").get_data(as_text=True)
+    assert "크롤 API" in html
+    assert 'name="name"' not in html
+    assert "/api-keys" in html
+
+
+def test_dashboard_import_database_button_queues_collect(client, app):
+    from apps.models import ImportJob
+    from apps.services.settings import set_setting
+
+    with app.app_context():
+        seed_admin_user()
+        set_setting("crawl_api_key", "k")
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
+    html = client.get("/").get_data(as_text=True)
+    assert "데이터베이스 가져오기</button>" in html
+    form = html.split("데이터베이스 가져오기</button>", 1)[0].rsplit("<form", 1)[1]
+    assert 'action="/upload"' in form
+    r = client.post("/upload")
+    assert r.status_code == 302
+    with app.app_context():
+        job = db.session.execute(
+            db.select(ImportJob).order_by(ImportJob.id.desc())
+        ).scalars().first()
+        assert job is not None and job.status == "pending"
 
 
 def test_api_key_title_reveal_and_copy_payload(client, app):
@@ -186,7 +250,7 @@ def test_api_docs_page(client, app):
     with app.app_context():
         seed_admin_user()
     client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
-    r = client.get("/api-keys/docs")
+    r = client.get("/api-keys")
     assert r.status_code == 200
     assert "API 명세서".encode() in r.data
     assert b"X-API-Key" in r.data

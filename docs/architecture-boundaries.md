@@ -115,7 +115,8 @@ Crawl API / CSV
 |------|------|
 | `apps/routes/api.py` | Blueprint `url_prefix=/api/v1` · `VEHICLE_FIELDS` · `_vehicle_public` |
 | `apps/services/api_keys.py` | `X-API-Key` / Bearer 검증 |
-| `apps/services/openapi.py` | OpenAPI (vehicles만) |
+| `apps/services/openapi.py` | 명세서 원천 (필드 설명·파라미터) → 관리자 `/api-keys` 화면 · OpenAPI · Markdown (vehicles만) |
+| `templates/api_spec.md` · `docs/api-spec.md` | 타 문서용 Markdown 명세서 템플릿 · 운영 URL 기준 생성본 |
 | `apps/services/db_stats.py` | count/estimate · list order |
 
 ### 3.4 PM 쪽에서만 존재하는 것 (참고 — Hub에 이식 금지)

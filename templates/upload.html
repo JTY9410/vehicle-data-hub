@@ -18,7 +18,7 @@
 <div class="alert alert-warning">Vercel 요청은 스케줄러에 넘깁니다. 실제 전량 수집은 Docker가 이어서 실행합니다.</div>
 {% endif %}
 {% if not crawl_configured %}
-<div class="alert alert-warning">크롤 API 키가 없습니다. <a href="{{ url_for('admin.api_keys') }}">관리자 설정</a>에서 키를 저장하세요.</div>
+<div class="alert alert-warning">크롤 API 키가 없습니다. <a href="{{ url_for('admin.settings') }}">수집 설정</a>에서 키를 저장하세요.</div>
 {% endif %}
 <div class="glass-card p-3 mb-4 small">
   <strong>저장 컬럼:</strong>

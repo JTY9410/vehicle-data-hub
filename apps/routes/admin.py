@@ -2,6 +2,7 @@ import os
 
 from flask import (
     Blueprint,
+    Response,
     flash,
     jsonify,
     redirect,
@@ -37,6 +38,7 @@ from apps.services.db_stats import (
 from apps.services.encar_fuel import ENCAR_FUELS, normalize_fuel
 from apps.services.import_crawl import request_manual_collect
 from apps.services.import_csv import parse_date_bound
+from apps.services.openapi import api_spec_markdown, spec_context, vehicle_openapi_spec
 from apps.services.scheduler import next_sunday_midnight_kst
 from apps.services.settings import (
     CRAWL_API_KEY,
@@ -114,7 +116,10 @@ def dashboard():
         db.select(ImportJob).order_by(ImportJob.id.desc()).limit(10)
     ).scalars().all()
     return render_template(
-        "dashboard.html", vehicle_count=vehicle_count, jobs=jobs
+        "dashboard.html",
+        vehicle_count=vehicle_count,
+        jobs=jobs,
+        crawl_configured=crawl_key_configured(),
     )
 
 
@@ -479,29 +484,9 @@ def upload_status_json(job_id: int):
     )
 
 
-def _render_settings(*, plaintext=None, job=None):
-    keys = db.session.execute(
-        db.select(ApiKey).order_by(ApiKey.id.desc())
-    ).scalars().all()
-    crawl_url, _key = crawl_credentials()
-    return render_template(
-        "settings.html",
-        keys=keys,
-        plaintext=plaintext,
-        job=job,
-        crawl_url=crawl_url,
-        crawl_key_masked=masked_crawl_key(),
-        crawl_configured=crawl_key_configured(),
-        next_collect_at=next_sunday_midnight_kst(),
-        on_vercel=bool(os.environ.get("VERCEL")),
-    )
-
-
 @bp.route("/settings", methods=["GET", "POST"])
-@bp.route("/api-keys", methods=["GET", "POST"])
 @login_required
-def api_keys():
-    plaintext = None
+def settings():
     if request.method == "POST":
         action = (request.form.get("action") or "").strip()
         if action == "save_crawl":
@@ -515,20 +500,41 @@ def api_keys():
                 flash("크롤 API URL 또는 키를 입력하세요.", "warning")
             else:
                 flash("크롤 API 설정을 저장했습니다.", "success")
-            return redirect(url_for("admin.api_keys"))
+            return redirect(url_for("admin.settings"))
         if action == "collect":
             if not crawl_key_configured():
                 flash("크롤 API 키를 먼저 저장하세요.", "warning")
-                return redirect(url_for("admin.api_keys"))
+                return redirect(url_for("admin.settings"))
             job = request_manual_collect()
             return redirect(url_for("admin.upload_status", job_id=job.id))
+    crawl_url, _key = crawl_credentials()
+    return render_template(
+        "settings.html",
+        crawl_url=crawl_url,
+        crawl_key_masked=masked_crawl_key(),
+        crawl_configured=crawl_key_configured(),
+        next_collect_at=next_sunday_midnight_kst(),
+        on_vercel=bool(os.environ.get("VERCEL")),
+    )
+
+
+@bp.route("/api-keys", methods=["GET", "POST"])
+@login_required
+def api_keys():
+    plaintext = None
+    if request.method == "POST":
         name = (request.form.get("name") or "").strip()
         if not name:
             flash("키 이름을 입력하세요.", "warning")
         else:
             _row, plaintext = create_api_key(name)
             flash("API 키가 발급되었습니다. 이름을 클릭하면 다시 보고 복사할 수 있습니다.", "success")
-    return _render_settings(plaintext=plaintext)
+    keys = db.session.execute(
+        db.select(ApiKey).order_by(ApiKey.id.desc())
+    ).scalars().all()
+    return render_template(
+        "api_keys.html", keys=keys, plaintext=plaintext, **spec_context()
+    )
 
 
 @bp.get("/api-keys/<int:key_id>/reveal")
@@ -550,17 +556,23 @@ def api_keys_reveal(key_id: int):
 @bp.get("/api-keys/docs")
 @login_required
 def api_docs():
-    return render_template("api_docs.html")
+    return redirect(url_for("admin.api_keys", _anchor="spec"))
 
 
 @bp.get("/api-keys/openapi.json")
 @login_required
 def api_openapi():
-    from flask import jsonify
-
-    from apps.services.openapi import vehicle_openapi_spec
-
     return jsonify(vehicle_openapi_spec())
+
+
+@bp.get("/api-keys/spec.md")
+@login_required
+def api_spec_md():
+    return Response(
+        api_spec_markdown(),
+        mimetype="text/markdown",
+        headers={"Content-Disposition": "attachment; filename=vehicle-hub-api-spec.md"},
+    )
 
 
 @bp.post("/api-keys/<int:key_id>/revoke")
