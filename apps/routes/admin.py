@@ -43,6 +43,8 @@ from apps.services.scheduler import next_sunday_midnight_kst
 from apps.services.settings import (
     CRAWL_API_KEY,
     CRAWL_API_URL,
+    CRAWL_PAGE_LIMIT,
+    CRAWL_RESUME_ID,
     crawl_credentials,
     crawl_key_configured,
     masked_crawl_key,
@@ -139,6 +141,8 @@ def reset_data():
     deleted_vehicles = db.session.execute(db.delete(Vehicle)).rowcount or 0
     deleted_jobs = db.session.execute(db.delete(ImportJob)).rowcount or 0
     db.session.commit()
+    set_setting(CRAWL_RESUME_ID, "")
+    set_setting(CRAWL_PAGE_LIMIT, "")
     flash(
         f"데이터 초기화 완료: 차량 {deleted_vehicles:,}건, 적재이력 {deleted_jobs:,}건 삭제 "
         "(API 키·관리자 계정은 유지)",

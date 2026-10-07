@@ -123,6 +123,10 @@ def max_numeric_source_id() -> int:
 
 
 def crawl_start_offset() -> int:
+    from apps.models import Vehicle
+
+    if db.session.execute(db.select(Vehicle.id).limit(1)).first() is None:
+        return 0
     resume = 0
     raw = get_setting(CRAWL_RESUME_ID)
     if raw:
@@ -186,6 +190,9 @@ def import_from_crawl(
         if not api_key:
             raise RuntimeError("CRAWL_API_KEY가 설정되지 않았습니다.")
         started_from = crawl_start_offset()
+        if not started_from and get_setting(CRAWL_RESUME_ID):
+            set_setting(CRAWL_RESUME_ID, "")
+            set_setting(CRAWL_PAGE_LIMIT, "")
         start_limit = get_setting(CRAWL_PAGE_LIMIT)
 
         def fetch_rows():

@@ -529,6 +529,40 @@ def test_import_keeps_small_page_limit_across_429_then_completes(app, monkeypatc
         assert get_setting(CRAWL_RESUME_ID) is None
 
 
+def test_reset_data_clears_crawl_cursor(client, app):
+    from apps.cli import seed_admin_user
+    from apps.services.settings import CRAWL_PAGE_LIMIT
+
+    with app.app_context():
+        seed_admin_user()
+        set_setting(CRAWL_RESUME_ID, "55158")
+        set_setting(CRAWL_PAGE_LIMIT, "1")
+    client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
+    client.post("/reset-data", data={"confirm": "DELETE"})
+    with app.app_context():
+        assert get_setting(CRAWL_RESUME_ID) is None
+        assert get_setting(CRAWL_PAGE_LIMIT) is None
+
+
+def test_import_restarts_from_zero_with_full_pages_when_vehicles_empty(app, monkeypatch):
+    from apps.services.settings import CRAWL_PAGE_LIMIT
+
+    calls = []
+    monkeypatch.setattr(
+        "apps.services.crawl_client._default_http_get",
+        _server_with_bad_id([1, 2, 3], None, calls),
+    )
+    monkeypatch.setattr("apps.services.import_crawl.PAGE_DELAY_SECONDS", 0)
+    with app.app_context():
+        set_setting("crawl_api_key", "k")
+        set_setting(CRAWL_RESUME_ID, "55158")
+        set_setting(CRAWL_PAGE_LIMIT, "1")
+        job = import_from_crawl(source="cli", replace=False)
+        assert job.status == "completed"
+        assert calls[0] == (0, 2000)
+        assert db.session.query(Vehicle).count() == 3
+
+
 def test_non_429_failure_requeues_with_cooldown(app):
     with app.app_context():
         set_setting(CRAWL_RESUME_ID, "300")
