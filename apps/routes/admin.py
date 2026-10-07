@@ -39,7 +39,7 @@ from apps.services.encar_fuel import ENCAR_FUELS, normalize_fuel
 from apps.services.import_crawl import request_manual_collect
 from apps.services.import_csv import parse_date_bound
 from apps.services.openapi import api_spec_markdown, spec_context, vehicle_openapi_spec
-from apps.services.scheduler import next_sunday_midnight_kst
+from apps.services.scheduler import next_midnight_kst
 from apps.services.settings import (
     CRAWL_API_KEY,
     CRAWL_API_URL,
@@ -517,7 +517,7 @@ def settings():
         crawl_url=crawl_url,
         crawl_key_masked=masked_crawl_key(),
         crawl_configured=crawl_key_configured(),
-        next_collect_at=next_sunday_midnight_kst(),
+        next_collect_at=next_midnight_kst(),
         on_vercel=bool(os.environ.get("VERCEL")),
     )
 

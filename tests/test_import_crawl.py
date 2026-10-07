@@ -412,10 +412,9 @@ def test_upload_post_queues_then_scheduler_syncs(client, app, monkeypatch):
         assert get_setting(CRAWL_COLLECT_NOW) == "1"
         job = consume_queued_collect()
         assert job.status == "completed"
-        cars = db.session.execute(db.select(Vehicle)).scalars().all()
-        assert len(cars) == 1
-        assert cars[0].site_id == "web-1"
-        assert cars[0].car_price == 2100
+        cars = {v.site_id: v for v in db.session.execute(db.select(Vehicle)).scalars()}
+        assert set(cars) == {"stale", "web-1"}
+        assert cars["web-1"].car_price == 2100
 
 
 def test_get_with_retry_does_not_repeat_http_500():
@@ -527,6 +526,35 @@ def test_import_keeps_small_page_limit_across_429_then_completes(app, monkeypatc
         assert saved == {"1", "2", "4", "5", "6", "7", "8"}
         assert get_setting(CRAWL_PAGE_LIMIT) is None
         assert get_setting(CRAWL_RESUME_ID) is None
+
+
+def test_daily_schedule_queues_incremental_collect_after_existing_data(app):
+    with app.app_context():
+        db.session.add(
+            Vehicle(site_type="encar", site_id="old", source_id="500", car_no="12가0500", car_price=1000)
+        )
+        db.session.commit()
+        job = request_manual_collect(source="cron", filename="daily")
+        assert job.status == "pending"
+        assert get_setting(CRAWL_RESUME_ID) == "500"
+
+        def only_new():
+            yield _item(id=501, site_id="new", car_no="12가0501", car_price="1100")
+
+        done = consume_queued_collect(fetch_rows=only_new)
+        assert done.id == job.id
+        assert (done.source, done.filename, done.status) == ("cron", "daily", "completed")
+        assert {v.site_id for v in db.session.execute(db.select(Vehicle)).scalars()} == {"old", "new"}
+
+
+def test_scheduler_tick_survives_database_outage(app, monkeypatch):
+    from apps import scheduler
+
+    def db_down():
+        raise RuntimeError("failed to resolve host")
+
+    monkeypatch.setattr(scheduler, "crawl_cooldown_remaining", db_down)
+    assert scheduler.tick(app) == scheduler.ERROR_RETRY_SECONDS
 
 
 def test_reset_data_clears_crawl_cursor(client, app):

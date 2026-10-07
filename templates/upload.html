@@ -1,7 +1,7 @@
 <!--
   [UI Flow]
   1. Auth required
-  2. Data: POST /upload → crawl API 전량 교체 ImportJob
+  2. Data: POST /upload → crawl API 추가 데이터 수집 ImportJob
   3. States: form | missing key | vercel blocked | progress result
   4. Actions → dashboard / vehicles
 -->
@@ -11,11 +11,11 @@
 <p class="section-kicker mb-1">IMPORT</p>
 <h1 class="page-title">크롤 데이터 동기화</h1>
 <p class="page-subtitle">
-  <a href="https://crawl.wecarmobility.co.kr/docs#/" target="_blank" rel="noopener">crawl API</a>에서 전량을 가져와 기존 차량 데이터를 삭제한 뒤 다시 저장합니다.
+  <a href="https://crawl.wecarmobility.co.kr/docs#/" target="_blank" rel="noopener">crawl API</a>에서 기존 데이터 이후의 새 데이터만 추가로 수집합니다. 자동 수집은 매일 저녁 12시(KST)입니다.
   렌트카 번호(하/허/호)·가격 ≤0 또는 ≥9999는 저장하지 않습니다. 가격 단위: 만원.
 </p>
 {% if on_vercel %}
-<div class="alert alert-warning">Vercel 요청은 스케줄러에 넘깁니다. 실제 전량 수집은 Docker가 이어서 실행합니다.</div>
+<div class="alert alert-warning">Vercel 요청은 스케줄러에 넘깁니다. 실제 수집은 Docker가 이어서 실행합니다.</div>
 {% endif %}
 {% if not crawl_configured %}
 <div class="alert alert-warning">크롤 API 키가 없습니다. <a href="{{ url_for('admin.settings') }}">수집 설정</a>에서 키를 저장하세요.</div>
@@ -28,8 +28,8 @@
 <div class="glass-card p-4">
   <form method="post" action="{{ url_for('admin.upload') }}" id="crawl-sync-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="small text-muted mb-3">실행하면 현재 저장된 차량을 모두 지우고 API 데이터를 다시 넣습니다. API 키·관리자 계정은 유지됩니다.</p>
-    <button class="btn btn-primary" type="submit"{% if not crawl_configured %} disabled{% endif %}>기존 데이터 삭제 후 다시 가져오기</button>
+    <p class="small text-muted mb-3">저장된 차량은 그대로 두고, 마지막으로 받은 id 다음 데이터부터 받습니다. 크롤 API 한도면 스케줄러가 기다린 뒤 이어서 받습니다.</p>
+    <button class="btn btn-primary" type="submit"{% if not crawl_configured %} disabled{% endif %}>추가 데이터 수집</button>
     <button type="button" class="btn btn-outline-primary ms-2" id="openResetDialog" aria-haspopup="dialog" aria-controls="resetDataDialog">
       데이터만 초기화
     </button>

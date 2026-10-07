@@ -137,14 +137,14 @@ def crawl_start_offset() -> int:
     return max(resume, max_numeric_source_id())
 
 
-def request_manual_collect() -> ImportJob:
+def request_manual_collect(*, source: str = "web", filename: str = "manual") -> ImportJob:
     current = find_running_job() or find_pending_job()
     if current:
         return current
     offset = crawl_start_offset()
     if offset:
         set_setting(CRAWL_RESUME_ID, str(offset))
-    job = ImportJob(source="web", filename="manual", status="pending")
+    job = ImportJob(source=source, filename=filename, status="pending")
     db.session.add(job)
     db.session.commit()
     set_setting(CRAWL_COLLECT_NOW, str(job.id))
@@ -152,6 +152,7 @@ def request_manual_collect() -> ImportJob:
 
 
 def consume_queued_collect(**kwargs):
+    kwargs.setdefault("replace", False)
     left = crawl_cooldown_remaining()
     if left:
         return None
@@ -169,7 +170,7 @@ def consume_queued_collect(**kwargs):
     if job is None:
         return None
     set_setting(CRAWL_COLLECT_NOW, "")
-    return import_from_crawl(source="web", filename="queued", job=job, **kwargs)
+    return import_from_crawl(source=job.source, filename=job.filename, job=job, **kwargs)
 
 
 def import_from_crawl(

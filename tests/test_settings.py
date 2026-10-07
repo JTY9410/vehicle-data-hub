@@ -5,7 +5,7 @@ from apps.cli import seed_admin_user
 from apps.extensions import db
 from apps.models import ImportJob, Vehicle
 from apps.services.import_crawl import consume_queued_collect, import_from_crawl, item_to_row
-from apps.services.scheduler import next_sunday_midnight_kst
+from apps.services.scheduler import next_midnight_kst
 from apps.services.settings import crawl_credentials, crawl_key_configured, set_setting
 
 
@@ -115,16 +115,12 @@ def test_settings_crawl_key_overrides_env(app):
         assert crawl_key_configured() is True
 
 
-def test_next_sunday_midnight_kst_is_monday_00():
+def test_next_midnight_kst_is_every_night_00():
     seoul = ZoneInfo("Asia/Seoul")
-    # 2026-09-13 is Sunday
-    now = datetime(2026, 9, 13, 21, 0, tzinfo=seoul)
-    nxt = next_sunday_midnight_kst(now)
-    assert nxt.tzinfo == seoul
-    assert nxt.weekday() == 0
-    assert nxt.hour == 0
-    assert nxt.minute == 0
-    assert nxt.date().isoformat() == "2026-09-14"
+    nxt = next_midnight_kst(datetime(2026, 10, 8, 8, 30, tzinfo=seoul))
+    assert nxt == datetime(2026, 10, 9, 0, 0, tzinfo=seoul)
+    at_midnight = next_midnight_kst(datetime(2026, 10, 9, 0, 0, tzinfo=seoul))
+    assert at_midnight == datetime(2026, 10, 10, 0, 0, tzinfo=seoul)
 
 
 def test_settings_page_saves_keys_and_manual_collect(client, app, monkeypatch):
@@ -193,7 +189,8 @@ def test_vercel_still_queues_manual_collect_and_shows_button(client, app, monkey
     page = client.get("/settings")
     assert page.status_code == 200
     html = page.get_data(as_text=True)
-    assert "지금 수기 수집" in html
+    assert "추가 데이터 수집" in html
+    assert "매일 저녁 12시" in html
     collect_btn = html.split('value="collect"', 1)[1].split("</button>", 1)[0]
     assert "disabled" not in collect_btn
     r = client.post("/settings", data={"action": "collect"}, follow_redirects=True)

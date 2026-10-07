@@ -82,8 +82,8 @@ def test_dashboard_import_database_button_queues_collect(client, app):
         set_setting("crawl_api_key", "k")
     client.post("/login", data={"username": "testadmin", "password": "test-admin-pass"})
     html = client.get("/").get_data(as_text=True)
-    assert "데이터베이스 가져오기</button>" in html
-    form = html.split("데이터베이스 가져오기</button>", 1)[0].rsplit("<form", 1)[1]
+    assert "추가 데이터 수집</button>" in html
+    form = html.split("추가 데이터 수집</button>", 1)[0].rsplit("<form", 1)[1]
     assert 'action="/upload"' in form
     r = client.post("/upload")
     assert r.status_code == 302

@@ -3,7 +3,7 @@
   1. Auth required
   2. Data: GET / → vehicle_count, jobs
   3. States: empty jobs | list
-  4. Actions → 데이터베이스 가져오기 (POST /upload) / vehicles / api-keys / reset-data (native dialog)
+  4. Actions → 추가 데이터 수집 (POST /upload) / vehicles / api-keys / reset-data (native dialog)
 -->
 {% extends "base.html" %}
 {% block title %}대시보드 · Vehicle Hub{% endblock %}
@@ -20,12 +20,12 @@
   <div class="glass-card p-4 d-flex flex-column justify-content-center gap-2">
     <form method="post" action="{{ url_for('admin.upload') }}" class="d-grid">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn-primary" type="submit"{% if not crawl_configured %} disabled{% endif %}>데이터베이스 가져오기</button>
+      <button class="btn btn-primary" type="submit"{% if not crawl_configured %} disabled{% endif %}>추가 데이터 수집</button>
     </form>
     {% if not crawl_configured %}
-    <p class="small text-muted mb-0">크롤 API 키를 <a href="{{ url_for('admin.settings') }}">설정</a>에서 저장하면 가져올 수 있습니다.</p>
+    <p class="small text-muted mb-0">크롤 API 키를 <a href="{{ url_for('admin.settings') }}">설정</a>에서 저장하면 수집할 수 있습니다.</p>
     {% else %}
-    <p class="small text-muted mb-0">마지막으로 받은 데이터 다음부터 수기로 이어서 가져옵니다.</p>
+    <p class="small text-muted mb-0">기존 데이터 이후의 새 데이터만 수집합니다. 자동 수집은 매일 저녁 12시(KST)입니다.</p>
     {% endif %}
     <a class="btn btn-outline-primary" href="{{ url_for('admin.vehicles') }}">데이터 보기</a>
     <a class="btn btn-outline-primary" href="{{ url_for('admin.api_keys') }}">API 명세서·키 발급</a>
