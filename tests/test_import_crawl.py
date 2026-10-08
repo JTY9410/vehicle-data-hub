@@ -314,7 +314,35 @@ def test_429_sets_cooldown_and_requeues(app):
         else:
             raise AssertionError("expected crawl 429")
         assert crawl_cooldown_remaining() >= 60
-        assert get_setting(CRAWL_COLLECT_NOW) == "now"
+        job = db.session.execute(db.select(ImportJob)).scalar_one()
+        assert job.status == "pending"
+        assert get_setting(CRAWL_COLLECT_NOW) == str(job.id)
+        assert "10분 후 id 1부터" in job.error_message
+
+
+def test_failed_collect_keeps_one_job_and_retries_it(app):
+    with app.app_context():
+        job = request_manual_collect()
+
+        def boom():
+            raise RuntimeError("crawl API HTTP 429: Too many requests")
+            yield
+
+        for _ in range(3):
+            set_setting(CRAWL_COOLDOWN_UNTIL, "")
+            try:
+                consume_queued_collect(fetch_rows=boom)
+            except RuntimeError:
+                pass
+        assert db.session.query(ImportJob).count() == 1
+        assert request_manual_collect().id == job.id
+
+        set_setting(CRAWL_COOLDOWN_UNTIL, "")
+        done = consume_queued_collect(
+            fetch_rows=lambda: [_item(id=8, site_id="r1", car_no="12가8008", car_price="1300")]
+        )
+        assert done.id == job.id
+        assert done.status == "completed"
 
 
 def test_repeated_429_always_waits_ten_minutes(app):
@@ -581,7 +609,8 @@ def test_import_keeps_small_page_limit_across_429_then_completes(app, monkeypatc
         else:
             raise AssertionError("expected 429")
         assert get_setting(CRAWL_PAGE_LIMIT) == "125"
-        assert get_setting(CRAWL_COLLECT_NOW) == "now"
+        failed = db.session.execute(db.select(ImportJob)).scalar_one()
+        assert get_setting(CRAWL_COLLECT_NOW) == str(failed.id)
 
         set_setting(CRAWL_COOLDOWN_UNTIL, "")
         calls.clear()
@@ -613,6 +642,87 @@ def test_daily_schedule_queues_incremental_collect_after_existing_data(app):
         assert done.id == job.id
         assert (done.source, done.filename, done.status) == ("cron", "daily", "completed")
         assert {v.site_id for v in db.session.execute(db.select(Vehicle)).scalars()} == {"old", "new"}
+
+
+def test_scheduler_tick_reports_crawl_failure_with_next_retry(app, monkeypatch, capsys):
+    from apps import scheduler
+
+    def limited():
+        set_crawl_cooldown(600)
+        raise RuntimeError("crawl API HTTP 429: Too many requests")
+
+    monkeypatch.setattr(scheduler, "consume_queued_collect", limited)
+    scheduler.tick(app)
+    out = capsys.readouterr().out
+    assert "queued crawl failed: crawl API HTTP 429" in out
+    assert "next retry" in out and "KST" in out
+    assert "retry in 30s" not in out
+
+
+def test_scheduler_logs_cooldown_once_per_wait(app, capsys):
+    from apps import scheduler
+
+    with app.app_context():
+        set_crawl_cooldown(600)
+    for _ in range(3):
+        scheduler.tick(app)
+    assert capsys.readouterr().out.count("crawl cooldown until") == 1
+
+
+def _fake_urlopen(status, body, headers):
+    import io
+    from http.client import HTTPMessage
+    from urllib.error import HTTPError
+
+    msg = HTTPMessage()
+    for k, v in headers.items():
+        msg[k] = v
+
+    class Resp:
+        def __init__(self):
+            self.status, self.headers = status, msg
+
+        def read(self):
+            return body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    def urlopen(req, timeout=None):
+        if status >= 400:
+            raise HTTPError(req.full_url, status, "error", msg, io.BytesIO(body))
+        return Resp()
+
+    return urlopen
+
+
+def test_crawl_request_log_has_offset_status_and_limit_headers_but_no_key(monkeypatch, capsys):
+    from apps.services import crawl_client
+
+    url = "https://crawl.example.test/api/crawling?offset=32008&limit=2000"
+    monkeypatch.setattr(
+        crawl_client,
+        "urlopen",
+        _fake_urlopen(429, b'{"detail":"Too many requests"}', {"Retry-After": "30", "X-RateLimit-Remaining": "0"}),
+    )
+    try:
+        crawl_client._default_http_get(url, {"x-api-key": "secret-key-123"})
+    except CrawlHttpError:
+        pass
+    monkeypatch.setattr(
+        crawl_client, "urlopen", _fake_urlopen(200, b'{"datas": [{"id": 1}, {"id": 2}]}', {})
+    )
+    crawl_client._default_http_get(url, {"x-api-key": "secret-key-123"})
+    out = capsys.readouterr().out
+    lines = [line for line in out.splitlines() if line.startswith("crawl GET")]
+    assert len(lines) == 2
+    assert "offset=32008 limit=2000 -> 429" in lines[0]
+    assert "Retry-After=30" in lines[0] and "X-RateLimit-Remaining=0" in lines[0]
+    assert "-> 200 rows=2" in lines[1]
+    assert "secret-key-123" not in out
 
 
 def test_scheduler_tick_survives_database_outage(app, monkeypatch):
@@ -674,7 +784,9 @@ def test_non_429_failure_requeues_with_cooldown(app):
         else:
             raise AssertionError("expected 500")
         assert get_setting(CRAWL_RESUME_ID) == "300"
-        assert get_setting(CRAWL_COLLECT_NOW) == "now"
+        job = db.session.execute(db.select(ImportJob)).scalar_one()
+        assert job.status == "pending"
+        assert get_setting(CRAWL_COLLECT_NOW) == str(job.id)
         assert crawl_cooldown_remaining() >= 60
 
 
@@ -733,10 +845,12 @@ def test_get_with_retry_retries_dns_failure():
 
 def test_recover_interrupted_jobs_requeues_without_cooldown(app):
     with app.app_context():
-        db.session.add(ImportJob(source="web", filename="manual", status="running"))
+        job = ImportJob(source="web", filename="manual", status="running")
+        db.session.add(job)
         db.session.commit()
         n = recover_interrupted_jobs()
         assert n == 1
-        assert get_setting(CRAWL_COLLECT_NOW) == "now"
+        assert job.status == "pending"
+        assert get_setting(CRAWL_COLLECT_NOW) == str(job.id)
         assert crawl_cooldown_remaining() == 0
         assert get_setting(CRAWL_COOLDOWN_UNTIL) is None

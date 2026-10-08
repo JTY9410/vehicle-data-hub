@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
 DEFAULT_LIMIT = 2000
@@ -38,15 +39,36 @@ def retry_wait_seconds(exc: BaseException, *, attempt: int = 0) -> float:
     return min(MAX_429_WAIT, DEFAULT_429_WAIT * (attempt + 1))
 
 
+def _log_request(url: str, result: str, started: float, resp_headers=None) -> None:
+    query = parse_qs(urlparse(url).query)
+    limit_headers = [
+        f"{k}={v}"
+        for k, v in (resp_headers.items() if resp_headers else [])
+        if k.lower() == "retry-after" or "ratelimit" in k.lower()
+    ]
+    print(
+        f"crawl GET offset={query.get('offset', ['-'])[0]} limit={query.get('limit', ['-'])[0]} "
+        f"-> {result} {time.monotonic() - started:.1f}s "
+        f"limit-headers={','.join(limit_headers) or '-'}",
+        flush=True,
+    )
+
+
 def _default_http_get(url: str, headers: dict) -> dict:
     req = Request(url, headers=headers, method="GET")
+    started = time.monotonic()
     try:
         with urlopen(req, timeout=60) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            page = json.loads(resp.read().decode("utf-8"))
+            rows = len(page.get("datas") or []) if isinstance(page, dict) else 0
+            _log_request(url, f"{resp.status} rows={rows}", started, resp.headers)
+            return page
     except HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+        _log_request(url, str(exc.code), started, exc.headers)
         raise CrawlHttpError(exc.code, body, parse_retry_after(exc.headers)) from exc
     except URLError as exc:
+        _log_request(url, f"연결 실패({exc.reason})", started)
         raise RuntimeError(f"crawl API 연결 실패: {exc.reason}") from exc
 
 

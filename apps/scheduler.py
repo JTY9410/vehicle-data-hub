@@ -13,11 +13,13 @@ from apps.services.import_crawl import (
     request_manual_collect,
 )
 from apps.services.scheduler import SEOUL, next_midnight_kst
-from apps.services.settings import crawl_cooldown_remaining
+from apps.services.settings import CRAWL_COOLDOWN_UNTIL, crawl_cooldown_remaining, get_setting
 
 POLL_SECONDS = 5
 COOLDOWN_POLL_SECONDS = 60
 ERROR_RETRY_SECONDS = 30
+
+_announced_cooldown: str | None = None
 
 
 def _rollback() -> None:
@@ -27,24 +29,52 @@ def _rollback() -> None:
         pass
 
 
+def _cooldown_until() -> tuple[str | None, str]:
+    raw = get_setting(CRAWL_COOLDOWN_UNTIL)
+    if not raw:
+        return None, "-"
+    return raw, datetime.fromisoformat(raw).astimezone(SEOUL).strftime("%H:%M:%S KST")
+
+
+def _db_error(exc: Exception) -> int:
+    _rollback()
+    print(f"scheduler error (retry in {ERROR_RETRY_SECONDS}s): {exc}", flush=True)
+    return ERROR_RETRY_SECONDS
+
+
 def tick(app) -> int:
+    global _announced_cooldown
     with app.app_context():
         try:
             left = crawl_cooldown_remaining()
             if left:
-                print(f"crawl cooldown {left}s", flush=True)
+                raw, until = _cooldown_until()
+                if raw != _announced_cooldown:
+                    print(f"crawl cooldown until {until}", flush=True)
+                    _announced_cooldown = raw
                 return min(COOLDOWN_POLL_SECONDS, left)
+        except Exception as exc:  # noqa: BLE001
+            return _db_error(exc)
+        try:
             job = consume_queued_collect()
-            if job:
-                print(
-                    f"queued crawl {job.filename} status={job.status} saved={job.saved_rows} "
-                    f"rejected={job.rejected_rows}",
-                    flush=True,
-                )
         except Exception as exc:  # noqa: BLE001
             _rollback()
-            print(f"scheduler error (retry in {ERROR_RETRY_SECONDS}s): {exc}", flush=True)
-            return ERROR_RETRY_SECONDS
+            try:
+                left = crawl_cooldown_remaining()
+                raw, until = _cooldown_until()
+            except Exception:  # noqa: BLE001
+                left = 0
+            if not left:
+                return _db_error(exc)
+            print(f"queued crawl failed: {exc}; next retry {until}", flush=True)
+            _announced_cooldown = raw
+            return POLL_SECONDS
+        if job:
+            print(
+                f"queued crawl {job.filename} status={job.status} saved={job.saved_rows} "
+                f"rejected={job.rejected_rows}",
+                flush=True,
+            )
     return POLL_SECONDS
 
 

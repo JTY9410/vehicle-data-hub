@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import datetime, timezone
 
 from apps.extensions import db
 from apps.models import ImportJob, utcnow
 from apps.services.crawl_client import DEFAULT_LIMIT, iter_crawling_rows
 from apps.services.filters import should_reject_row
 from apps.services.import_csv import delete_vehicles_missing_keys, import_row_dicts
+from apps.services.scheduler import SEOUL
 from apps.services.settings import (
     CRAWL_COLLECT_NOW,
     CRAWL_PAGE_LIMIT,
@@ -49,20 +50,6 @@ def item_to_row(item: dict) -> dict:
     return row
 
 
-def fail_running_jobs(message: str = "수집 프로세스가 재시작되어 중단했습니다.") -> int:
-    rows = db.session.execute(
-        db.select(ImportJob).where(ImportJob.status == "running")
-    ).scalars().all()
-    now = utcnow()
-    for job in rows:
-        job.status = "failed"
-        job.error_message = message
-        job.finished_at = now
-    if rows:
-        db.session.commit()
-    return len(rows)
-
-
 def fail_stale_running_jobs() -> int:
     now = utcnow()
     rows = db.session.execute(
@@ -99,10 +86,16 @@ def find_pending_job() -> ImportJob | None:
 
 
 def recover_interrupted_jobs() -> int:
-    n = fail_running_jobs()
-    if n:
-        set_setting(CRAWL_COLLECT_NOW, "now")
-    return n
+    rows = db.session.execute(
+        db.select(ImportJob).where(ImportJob.status == "running").order_by(ImportJob.id)
+    ).scalars().all()
+    for job in rows:
+        job.status = "pending"
+        job.error_message = "수집 프로세스가 재시작되어 이어서 받습니다."
+    if rows:
+        db.session.commit()
+        set_setting(CRAWL_COLLECT_NOW, str(rows[-1].id))
+    return len(rows)
 
 
 def max_numeric_source_id() -> int:
@@ -277,9 +270,8 @@ def import_from_crawl(
             if last_id:
                 set_setting(CRAWL_RESUME_ID, str(last_id))
         job = db.session.get(ImportJob, job.id) or job
-        job.status = "failed"
-        job.error_message = str(exc)
-        job.finished_at = utcnow()
+        job.status = "pending"
+        job.finished_at = None
         if last_id:
             set_setting(CRAWL_RESUME_ID, str(last_id))
         if "HTTP 429" in str(exc):
@@ -288,10 +280,11 @@ def import_from_crawl(
         else:
             set_crawl_cooldown(DEFAULT_COOLDOWN_SECONDS)
             reason = f"수집 실패({exc})"
-        set_setting(CRAWL_COLLECT_NOW, "now")
+        set_setting(CRAWL_COLLECT_NOW, str(job.id))
         job.error_message = (
-            f"{reason}. {max(1, crawl_cooldown_remaining() // 60)}분 후 "
-            f"id {last_id or started_from}부터 이어서 재시도"
+            f"{reason}(마지막 시도 {datetime.now(SEOUL):%H:%M}). "
+            f"{max(1, -(-crawl_cooldown_remaining() // 60))}분 후 "
+            f"id {(last_id or started_from) + 1}부터 이어서 재시도"
         )
         db.session.commit()
         raise
