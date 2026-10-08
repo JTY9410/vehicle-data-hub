@@ -59,7 +59,9 @@ def _transient_http(exc: BaseException) -> bool:
     return "HTTP 429" in msg and getattr(exc, "retry_after", None) is not None
 
 
-def _get_with_retry(get, url: str, headers: dict, *, retries: int = 2, sleep=time.sleep):
+def _get_with_retry(
+    get, url: str, headers: dict, *, retries: int = 2, sleep=time.sleep, min_wait: float = 0.0
+):
     last: Exception | None = None
     for attempt in range(retries + 1):
         try:
@@ -70,7 +72,7 @@ def _get_with_retry(get, url: str, headers: dict, *, retries: int = 2, sleep=tim
                 raise
             header = getattr(exc, "retry_after", None)
             wait = min(60.0, max(1.0, float(header))) if header is not None else 3.0
-            sleep(wait)
+            sleep(max(wait, min_wait))
     assert last is not None
     raise last
 
@@ -92,6 +94,7 @@ def iter_crawling_rows(
 
     offset은 "이 id부터"(포함)라서 다음 페이지는 마지막 id + 1부터 요청한다.
     크롤 서버가 특정 행 때문에 500을 내면 페이지를 줄여 좁히고, 1건도 실패하면 그 id를 건너뛴다.
+    page_delay는 재시도를 포함한 모든 요청 사이 간격이다 (크롤 API 한도: 5분 10회).
     """
     get = http_get or _default_http_get
     offset = max(0, int(start_offset))
@@ -99,10 +102,14 @@ def iter_crawling_rows(
     skips = 0
     seen_ids: set[int] = set()
     headers = {"x-api-key": api_key, "accept": "application/json"}
+    first = True
     while True:
+        if page_delay and not first:
+            sleep(page_delay)
+        first = False
         url = f"{base_url.rstrip('/')}/api/crawling?offset={offset}&limit={page_limit}"
         try:
-            page = _get_with_retry(get, url, headers, sleep=sleep)
+            page = _get_with_retry(get, url, headers, sleep=sleep, min_wait=page_delay)
         except CrawlHttpError as exc:
             if exc.code != 500:
                 raise
@@ -141,5 +148,3 @@ def iter_crawling_rows(
             page_limit = min(limit, page_limit * 2)
             if on_limit:
                 on_limit(page_limit)
-        if page_delay:
-            sleep(page_delay)

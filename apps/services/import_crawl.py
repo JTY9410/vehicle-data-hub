@@ -8,12 +8,10 @@ from apps.services.crawl_client import DEFAULT_LIMIT, iter_crawling_rows
 from apps.services.filters import should_reject_row
 from apps.services.import_csv import delete_vehicles_missing_keys, import_row_dicts
 from apps.services.settings import (
-    CRAWL_429_STREAK,
     CRAWL_COLLECT_NOW,
     CRAWL_PAGE_LIMIT,
     CRAWL_RESUME_ID,
     DEFAULT_COOLDOWN_SECONDS,
-    MAX_COOLDOWN_SECONDS,
     crawl_cooldown_remaining,
     crawl_credentials,
     get_setting,
@@ -21,9 +19,9 @@ from apps.services.settings import (
     set_setting,
 )
 
-PAGE_DELAY_SECONDS = 1.0
-STALE_IDLE_SECONDS = 45 * 60
-STALE_MAX_SECONDS = 3 * 3600
+REQUEST_INTERVAL_SECONDS = 10 * 60
+STALE_IDLE_SECONDS = 2 * 3600
+STALE_MAX_SECONDS = 24 * 3600
 
 _KOREAN_TO_EN = {
     "색상": "car_color",
@@ -202,7 +200,7 @@ def import_from_crawl(
                 api_key=api_key,
                 limit=DEFAULT_LIMIT,
                 start_limit=int(start_limit) if start_limit and start_limit.isdigit() else None,
-                page_delay=PAGE_DELAY_SECONDS,
+                page_delay=REQUEST_INTERVAL_SECONDS,
                 start_offset=started_from + 1 if started_from else 0,
                 on_limit=lambda n: set_setting(CRAWL_PAGE_LIMIT, str(n)),
                 on_skip=skipped_ids.append,
@@ -285,9 +283,7 @@ def import_from_crawl(
         if last_id:
             set_setting(CRAWL_RESUME_ID, str(last_id))
         if "HTTP 429" in str(exc):
-            streak = int(get_setting(CRAWL_429_STREAK) or 0) + 1
-            set_setting(CRAWL_429_STREAK, str(streak))
-            set_crawl_cooldown(min(MAX_COOLDOWN_SECONDS, 30 * 60 * streak))
+            set_crawl_cooldown(REQUEST_INTERVAL_SECONDS)
             reason = "크롤 API 한도"
         else:
             set_crawl_cooldown(DEFAULT_COOLDOWN_SECONDS)
@@ -303,7 +299,6 @@ def import_from_crawl(
     if replace and started_from == 0:
         delete_vehicles_missing_keys(kept)
     set_setting(CRAWL_RESUME_ID, "")
-    set_setting(CRAWL_429_STREAK, "")
     set_setting(CRAWL_PAGE_LIMIT, "")
     job.status = "completed"
     job.error_message = (

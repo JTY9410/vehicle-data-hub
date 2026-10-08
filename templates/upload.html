@@ -28,7 +28,7 @@
 <div class="glass-card p-4">
   <form method="post" action="{{ url_for('admin.upload') }}" id="crawl-sync-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p class="small text-muted mb-3">저장된 차량은 그대로 두고, 마지막으로 받은 id 다음 데이터부터 받습니다. 크롤 API 한도면 스케줄러가 기다린 뒤 이어서 받습니다.</p>
+    <p class="small text-muted mb-3">저장된 차량은 그대로 두고, 마지막으로 받은 id 다음 데이터부터 받습니다. 요청은 10분에 1회, 1회 최대 2,000건이라 많이 밀려 있으면 몇 시간에 걸쳐 이어 받습니다.</p>
     <button class="btn btn-primary" type="submit"{% if not crawl_configured %} disabled{% endif %}>추가 데이터 수집</button>
     <button type="button" class="btn btn-outline-primary ms-2" id="openResetDialog" aria-haspopup="dialog" aria-controls="resetDataDialog">
       데이터만 초기화

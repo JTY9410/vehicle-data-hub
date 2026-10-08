@@ -317,6 +317,22 @@ def test_429_sets_cooldown_and_requeues(app):
         assert get_setting(CRAWL_COLLECT_NOW) == "now"
 
 
+def test_repeated_429_always_waits_ten_minutes(app):
+    with app.app_context():
+        set_setting("crawl_429_streak", "35")
+
+        def boom():
+            raise RuntimeError("crawl API HTTP 429: Too many requests")
+            yield
+
+        for _ in range(3):
+            try:
+                import_from_crawl(source="cli", fetch_rows=boom, replace=False)
+            except RuntimeError:
+                pass
+            assert 590 <= crawl_cooldown_remaining() <= 600
+
+
 def test_consume_skips_while_cooldown_active(app):
     with app.app_context():
         set_crawl_cooldown(600)
@@ -352,7 +368,7 @@ def test_stale_running_job_is_released_so_queue_can_run(app):
                 filename="manual",
                 status="running",
                 processed_rows=0,
-                started_at=utcnow() - timedelta(minutes=50),
+                started_at=utcnow() - timedelta(hours=3),
             )
         )
         db.session.commit()
@@ -366,6 +382,27 @@ def test_stale_running_job_is_released_so_queue_can_run(app):
             db.select(ImportJob).where(ImportJob.filename == "manual")
         ).scalar_one()
         assert stale.status == "failed"
+
+
+def test_slow_running_job_with_ten_minute_requests_is_not_expired(app):
+    from datetime import timedelta
+
+    from apps.models import utcnow
+    from apps.services.import_crawl import find_running_job
+
+    with app.app_context():
+        db.session.add_all(
+            [
+                ImportJob(source="web", filename="busy", status="running", processed_rows=4000,
+                          started_at=utcnow() - timedelta(hours=5)),
+                ImportJob(source="web", filename="narrowing", status="running", processed_rows=0,
+                          started_at=utcnow() - timedelta(minutes=90)),
+            ]
+        )
+        db.session.commit()
+        find_running_job()
+        statuses = {j.filename: j.status for j in db.session.execute(db.select(ImportJob)).scalars()}
+        assert statuses == {"busy": "running", "narrowing": "running"}
 
 
 def test_import_from_crawl_refuses_second_running_job(app):
@@ -466,6 +503,37 @@ def test_iter_crawling_rows_shrinks_page_and_skips_bad_row_on_500():
     assert limits[0] == 1
 
 
+def test_iter_crawling_rows_waits_interval_before_every_request_including_500_retries():
+    calls, sleeps = [], []
+    rows = list(
+        iter_crawling_rows(
+            base_url="https://crawl.example.test",
+            api_key="k",
+            limit=4,
+            http_get=_server_with_bad_id([1, 2, 3, 4, 5, 6], 3, calls),
+            page_delay=600,
+            sleep=sleeps.append,
+        )
+    )
+    assert [r["id"] for r in rows] == [1, 2, 4, 5, 6]
+    assert len(calls) > 3
+    assert sleeps == [600] * (len(calls) - 1)
+
+
+def test_get_with_retry_waits_at_least_min_wait_on_transient_error():
+    calls = {"n": 0}
+
+    def flaky(_url, _headers):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise CrawlHttpError(503, "Service Unavailable")
+        return {"ok": True}
+
+    sleeps = []
+    assert _get_with_retry(flaky, "https://x", {}, sleep=sleeps.append, min_wait=600) == {"ok": True}
+    assert sleeps == [600]
+
+
 def test_iter_crawling_rows_gives_up_when_every_request_fails():
     def always_500(_url, _headers):
         raise CrawlHttpError(500, "Internal Server Error")
@@ -503,7 +571,7 @@ def test_import_keeps_small_page_limit_across_429_then_completes(app, monkeypatc
         return server(url, headers)
 
     monkeypatch.setattr("apps.services.crawl_client._default_http_get", limited)
-    monkeypatch.setattr("apps.services.import_crawl.PAGE_DELAY_SECONDS", 0)
+    monkeypatch.setattr("apps.services.import_crawl.REQUEST_INTERVAL_SECONDS", 0)
     with app.app_context():
         set_setting("crawl_api_key", "k")
         try:
@@ -580,7 +648,7 @@ def test_import_restarts_from_zero_with_full_pages_when_vehicles_empty(app, monk
         "apps.services.crawl_client._default_http_get",
         _server_with_bad_id([1, 2, 3], None, calls),
     )
-    monkeypatch.setattr("apps.services.import_crawl.PAGE_DELAY_SECONDS", 0)
+    monkeypatch.setattr("apps.services.import_crawl.REQUEST_INTERVAL_SECONDS", 0)
     with app.app_context():
         set_setting("crawl_api_key", "k")
         set_setting(CRAWL_RESUME_ID, "55158")
