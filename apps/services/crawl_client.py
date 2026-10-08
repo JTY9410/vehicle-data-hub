@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 DEFAULT_LIMIT = 2000
 DEFAULT_429_WAIT = 60
 MAX_429_WAIT = 120
-MAX_CONSECUTIVE_SKIPS = 20
+MAX_CONSECUTIVE_SKIPS = 100
 
 
 class CrawlHttpError(RuntimeError):
@@ -106,17 +106,21 @@ def iter_crawling_rows(
     limit: int = DEFAULT_LIMIT,
     http_get=None,
     page_delay: float = 0.0,
+    error_delay: float | None = None,
     start_offset: int = 0,
     start_limit: int | None = None,
     sleep=time.sleep,
     on_limit=None,
     on_skip=None,
+    on_page=None,
 ):
     """GET /api/crawling 을 id offset 커서로 모두 순회. 중복 id는 건너뛴다.
 
     offset은 "이 id부터"(포함)라서 다음 페이지는 마지막 id + 1부터 요청한다.
     크롤 서버가 특정 행 때문에 500을 내면 페이지를 줄여 좁히고, 1건도 실패하면 그 id를 건너뛴다.
     page_delay는 재시도를 포함한 모든 요청 사이 간격이다 (크롤 API 한도: 5분 10회).
+    페이지가 최대보다 작은 동안(500 구간을 좁히거나 다시 키우는 중)에는 error_delay를 쓴다.
+    on_page는 한 페이지의 행을 모두 넘긴 뒤 다음 요청 전에 호출된다.
     """
     get = http_get or _default_http_get
     offset = max(0, int(start_offset))
@@ -126,12 +130,13 @@ def iter_crawling_rows(
     headers = {"x-api-key": api_key, "accept": "application/json"}
     first = True
     while True:
-        if page_delay and not first:
-            sleep(page_delay)
+        delay = error_delay if error_delay is not None and page_limit < limit else page_delay
+        if delay and not first:
+            sleep(delay)
         first = False
         url = f"{base_url.rstrip('/')}/api/crawling?offset={offset}&limit={page_limit}"
         try:
-            page = _get_with_retry(get, url, headers, sleep=sleep, min_wait=page_delay)
+            page = _get_with_retry(get, url, headers, sleep=sleep, min_wait=delay)
         except CrawlHttpError as exc:
             if exc.code != 500:
                 raise
@@ -163,6 +168,8 @@ def iter_crawling_rows(
                 seen_ids.add(item_id)
             yield item
             yielded += 1
+        if on_page:
+            on_page()
         if yielded == 0 or len(datas) < page_limit or max_id < offset:
             break
         offset = max_id + 1

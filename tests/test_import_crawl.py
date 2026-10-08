@@ -548,6 +548,71 @@ def test_iter_crawling_rows_waits_interval_before_every_request_including_500_re
     assert sleeps == [600] * (len(calls) - 1)
 
 
+def test_iter_crawling_rows_uses_short_delay_while_narrowing_500_zone():
+    calls, sleeps = [], []
+    rows = list(
+        iter_crawling_rows(
+            base_url="https://crawl.example.test",
+            api_key="k",
+            limit=4,
+            http_get=_server_with_bad_id(list(range(1, 13)), 3, calls),
+            page_delay=600,
+            error_delay=60,
+            sleep=sleeps.append,
+        )
+    )
+    assert 3 not in [r["id"] for r in rows]
+    assert {lim for _, lim in calls} > {4}
+    assert sleeps == [600 if lim == 4 else 60 for _, lim in calls[1:]]
+
+
+def test_iter_crawling_rows_skips_33_consecutive_bad_ids():
+    bad = set(range(10, 43))
+
+    def http_get(url, _headers):
+        from urllib.parse import parse_qs, urlparse
+
+        q = parse_qs(urlparse(url).query)
+        offset, limit = int(q["offset"][0]), int(q["limit"][0])
+        page = [i for i in range(1, 51) if i >= offset][:limit]
+        if bad & set(page):
+            raise CrawlHttpError(500, "Internal Server Error")
+        return {"datas": [_item(id=i, site_id=f"s{i}") for i in page]}
+
+    skipped = []
+    rows = list(
+        iter_crawling_rows(
+            base_url="https://crawl.example.test",
+            api_key="k",
+            limit=4,
+            http_get=http_get,
+            on_skip=skipped.append,
+        )
+    )
+    assert [r["id"] for r in rows] == [i for i in range(1, 51) if i not in bad]
+    assert skipped == sorted(bad)
+
+
+def test_import_saves_each_small_page_before_next_request(app, monkeypatch):
+    server = _server_with_bad_id(list(range(1, 9)), 3)
+    counts = []
+
+    def http_get(url, headers):
+        counts.append(db.session.query(Vehicle).count())
+        return server(url, headers)
+
+    monkeypatch.setattr("apps.services.crawl_client._default_http_get", http_get)
+    monkeypatch.setattr("apps.services.import_crawl.DEFAULT_LIMIT", 4)
+    monkeypatch.setattr("apps.services.import_crawl.REQUEST_INTERVAL_SECONDS", 0)
+    monkeypatch.setattr("apps.services.import_crawl.ERROR_INTERVAL_SECONDS", 0)
+    with app.app_context():
+        set_setting("crawl_api_key", "k")
+        job = import_from_crawl(source="cli", replace=False)
+        assert job.status == "completed"
+        assert counts[:3] == [0, 0, 1]
+        assert db.session.query(Vehicle).count() == 7
+
+
 def test_get_with_retry_waits_at_least_min_wait_on_transient_error():
     calls = {"n": 0}
 
@@ -581,7 +646,9 @@ def test_iter_crawling_rows_gives_up_when_every_request_fails():
         assert exc.code == 500
     else:
         raise AssertionError("expected 500")
-    assert 0 < len(skipped) <= 20
+    from apps.services.crawl_client import MAX_CONSECUTIVE_SKIPS
+
+    assert len(skipped) == MAX_CONSECUTIVE_SKIPS
 
 
 def test_import_keeps_small_page_limit_across_429_then_completes(app, monkeypatch):
@@ -600,6 +667,7 @@ def test_import_keeps_small_page_limit_across_429_then_completes(app, monkeypatc
 
     monkeypatch.setattr("apps.services.crawl_client._default_http_get", limited)
     monkeypatch.setattr("apps.services.import_crawl.REQUEST_INTERVAL_SECONDS", 0)
+    monkeypatch.setattr("apps.services.import_crawl.ERROR_INTERVAL_SECONDS", 0)
     with app.app_context():
         set_setting("crawl_api_key", "k")
         try:
@@ -759,6 +827,7 @@ def test_import_restarts_from_zero_with_full_pages_when_vehicles_empty(app, monk
         _server_with_bad_id([1, 2, 3], None, calls),
     )
     monkeypatch.setattr("apps.services.import_crawl.REQUEST_INTERVAL_SECONDS", 0)
+    monkeypatch.setattr("apps.services.import_crawl.ERROR_INTERVAL_SECONDS", 0)
     with app.app_context():
         set_setting("crawl_api_key", "k")
         set_setting(CRAWL_RESUME_ID, "55158")

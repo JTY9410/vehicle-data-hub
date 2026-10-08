@@ -21,6 +21,7 @@ from apps.services.settings import (
 )
 
 REQUEST_INTERVAL_SECONDS = 10 * 60
+ERROR_INTERVAL_SECONDS = 60
 STALE_IDLE_SECONDS = 2 * 3600
 STALE_MAX_SECONDS = 24 * 3600
 
@@ -194,9 +195,11 @@ def import_from_crawl(
                 limit=DEFAULT_LIMIT,
                 start_limit=int(start_limit) if start_limit and start_limit.isdigit() else None,
                 page_delay=REQUEST_INTERVAL_SECONDS,
+                error_delay=ERROR_INTERVAL_SECONDS,
                 start_offset=started_from + 1 if started_from else 0,
                 on_limit=lambda n: set_setting(CRAWL_PAGE_LIMIT, str(n)),
                 on_skip=skipped_ids.append,
+                on_page=lambda: _checkpoint(),
             )
 
     if job is None:
@@ -244,6 +247,19 @@ def import_from_crawl(
             complete=False,
         )
 
+    def _checkpoint() -> None:
+        nonlocal last_id
+        if not buf:
+            return
+        if skipped_ids:
+            last_id = max(last_id, skipped_ids[-1])
+        _flush(buf)
+        buf.clear()
+        if last_id:
+            set_setting(CRAWL_RESUME_ID, str(last_id))
+        job.error_message = f"크롤 API에서 받는 중입니다. 마지막 id {last_id}"
+        db.session.commit()
+
     try:
         for item in fetch_rows():
             raw_id = item.get("id")
@@ -253,12 +269,7 @@ def import_from_crawl(
                 last_id = max(last_id, skipped_ids[-1])
             buf.append(item_to_row(item))
             if len(buf) >= DEFAULT_LIMIT:
-                _flush(buf)
-                if last_id:
-                    set_setting(CRAWL_RESUME_ID, str(last_id))
-                job.error_message = f"크롤 API에서 받는 중입니다. 마지막 id {last_id}"
-                db.session.commit()
-                buf = []
+                _checkpoint()
         if buf:
             _flush(buf)
             buf = []
