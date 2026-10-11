@@ -117,7 +117,9 @@ def iter_crawling_rows(
     """GET /api/crawling 을 id offset 커서로 모두 순회. 중복 id는 건너뛴다.
 
     offset은 "이 id부터"(포함)라서 다음 페이지는 마지막 id + 1부터 요청한다.
-    크롤 서버가 특정 행 때문에 500을 내면 페이지를 줄여 좁히고, 1건도 실패하면 그 id를 건너뛴다.
+    크롤 서버가 특정 행 때문에 500을 내면 페이지를 줄여 좁힌다. 1건도 실패하면 id 간격이 클 수 있으므로
+    offset을 1, 2, 4, …씩 늘려 정상 응답 지점을 찾고, 이분 탐색으로 깨진 행 id를 찾아 그 구간을 건너뛴다.
+    on_skip에는 건너뛴 구간 (시작 offset, 깨진 행 id)이 넘어간다.
     page_delay는 재시도를 포함한 모든 요청 사이 간격이다 (크롤 API 한도: 5분 10회).
     페이지가 최대보다 작은 동안(500 구간을 좁히거나 다시 키우는 중)에는 error_delay를 쓴다.
     on_page는 한 페이지의 행을 모두 넘긴 뒤 다음 요청 전에 호출된다.
@@ -125,7 +127,9 @@ def iter_crawling_rows(
     get = http_get or _default_http_get
     offset = max(0, int(start_offset))
     page_limit = max(1, min(limit, int(start_limit or limit)))
-    skips = 0
+    probes = 0
+    bad_start = lo = hi = None
+    jump = 1
     seen_ids: set[int] = set()
     headers = {"x-api-key": api_key, "accept": "application/json"}
     first = True
@@ -145,14 +149,28 @@ def iter_crawling_rows(
                 if on_limit:
                     on_limit(page_limit)
                 continue
-            skips += 1
-            if skips > MAX_CONSECUTIVE_SKIPS:
+            probes += 1
+            if probes > MAX_CONSECUTIVE_SKIPS:
                 raise
+            if lo is None:
+                bad_start, jump = offset, 1
+            elif hi is None:
+                jump *= 2
+            lo = offset
+            if hi is None:
+                offset = lo + jump
+                continue
+        else:
+            if lo is not None:
+                hi = offset
+        if lo is not None:
+            if hi - lo > 1:
+                offset = (lo + hi) // 2
+                continue
             if on_skip:
-                on_skip(offset)
-            offset += 1
+                on_skip((bad_start, lo))
+            offset, probes, bad_start, lo, hi = hi, 0, None, None, None
             continue
-        skips = 0
         datas = page.get("datas") or []
         if not datas:
             break

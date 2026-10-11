@@ -177,7 +177,7 @@ def import_from_crawl(
     if running and (job is None or running.id != job.id):
         raise RuntimeError(f"이미 수집 중 (작업 #{running.id})")
     started_from = 0
-    skipped_ids: list[int] = []
+    skipped: list[tuple[int, int]] = []
     if fetch_rows is None:
         base_url, api_key = crawl_credentials()
         if not api_key:
@@ -198,7 +198,7 @@ def import_from_crawl(
                 error_delay=ERROR_INTERVAL_SECONDS,
                 start_offset=started_from + 1 if started_from else 0,
                 on_limit=lambda n: set_setting(CRAWL_PAGE_LIMIT, str(n)),
-                on_skip=skipped_ids.append,
+                on_skip=skipped.append,
                 on_page=lambda: _checkpoint(),
             )
 
@@ -251,8 +251,8 @@ def import_from_crawl(
         nonlocal last_id
         if not buf:
             return
-        if skipped_ids:
-            last_id = max(last_id, skipped_ids[-1])
+        if skipped:
+            last_id = max(last_id, skipped[-1][1])
         _flush(buf)
         buf.clear()
         if last_id:
@@ -265,8 +265,8 @@ def import_from_crawl(
             raw_id = item.get("id")
             if raw_id is not None:
                 last_id = max(last_id, int(raw_id))
-            if skipped_ids:
-                last_id = max(last_id, skipped_ids[-1])
+            if skipped:
+                last_id = max(last_id, skipped[-1][1])
             buf.append(item_to_row(item))
             if len(buf) >= DEFAULT_LIMIT:
                 _checkpoint()
@@ -274,8 +274,8 @@ def import_from_crawl(
             _flush(buf)
             buf = []
     except Exception as exc:  # noqa: BLE001
-        if skipped_ids:
-            last_id = max(last_id, skipped_ids[-1])
+        if skipped:
+            last_id = max(last_id, skipped[-1][1])
         if buf:
             _flush(buf)
             if last_id:
@@ -306,7 +306,10 @@ def import_from_crawl(
     set_setting(CRAWL_PAGE_LIMIT, "")
     job.status = "completed"
     job.error_message = (
-        f"크롤 서버 500으로 건너뛴 id: {', '.join(map(str, skipped_ids))}" if skipped_ids else None
+        "크롤 서버 500으로 건너뛴 id 구간: "
+        + ", ".join(str(b) if a == b else f"{a}~{b}" for a, b in skipped)
+        if skipped
+        else None
     )
     job.finished_at = utcnow()
     db.session.commit()
