@@ -21,11 +21,32 @@ def create_app(config_object="config.Config"):
         app = Flask(__name__, **flask_kwargs)
         app.config.from_object(config_object)
 
+        # ProxyFix: Vercel 또는 PROXY_FIX_HOPS 설정 시 활성 (Docker nginx/traefik 프록시)
         if os.environ.get("VERCEL"):
             from werkzeug.middleware.proxy_fix import ProxyFix
 
-            # Vercel 엣지 프록시: https / host 인식
             app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+        elif os.environ.get("PROXY_FIX_HOPS"):
+            from werkzeug.middleware.proxy_fix import ProxyFix
+
+            hops = int(os.environ.get("PROXY_FIX_HOPS", "1"))
+            app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops)
+            if hops > 0:
+                app.config["SESSION_COOKIE_SECURE"] = True
+                app.config["REMEMBER_COOKIE_SECURE"] = True
+
+        # SECRET_KEY 기본값 경고 (테스트/디버그 제외)
+        if (
+            app.config.get("SECRET_KEY") == "dev-change-me"
+            and not app.config.get("TESTING")
+            and not app.config.get("DEBUG")
+        ):
+            import sys
+            print(
+                "⚠️  WARNING: SECRET_KEY is using the default value 'dev-change-me'. "
+                "Set the SECRET_KEY environment variable in production!",
+                file=sys.stderr,
+            )
 
         Path(app.instance_path).mkdir(parents=True, exist_ok=True)
         upload = Path(app.config["UPLOAD_FOLDER"])
@@ -49,14 +70,32 @@ def create_app(config_object="config.Config"):
         csrf.exempt(api_bp)
         _register_cli(app)
 
+        @app.before_request
+        def _make_session_permanent():
+            from flask import session
+
+            session.permanent = True
+
         @app.after_request
         def _security_headers(resp):
+            from flask import request
+
             resp.headers.setdefault("X-Content-Type-Options", "nosniff")
             resp.headers.setdefault("X-Frame-Options", "DENY")
             resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
             resp.headers.setdefault(
                 "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
             )
+            # CSRF 토큰이 포함된 HTML 페이지는 캐시 방지 (로그인, 폼 등)
+            if (
+                request.endpoint
+                and not request.endpoint.startswith("api.")
+                and not request.endpoint.startswith("health.")
+                and resp.status_code == 200
+                and resp.content_type
+                and "text/html" in resp.content_type
+            ):
+                resp.headers["Cache-Control"] = "no-store, private"
             return resp
 
         @app.errorhandler(404)
@@ -75,6 +114,45 @@ def create_app(config_object="config.Config"):
                 "<p><a href='/login'>로그인</a> · <a href='/'>대시보드</a></p>"
                 "</body></html>"
             ), 404
+
+        @app.errorhandler(400)
+        def csrf_error(err):
+            from flask import flash, jsonify, redirect, request, url_for
+
+            error_desc = str(err.description) if hasattr(err, "description") else str(err)
+            # CSRF 에러인지 확인
+            is_csrf = "CSRF" in error_desc or "csrf" in error_desc.lower()
+
+            if request.path.startswith("/api/"):
+                return jsonify(error="bad_request", detail=error_desc), 400
+
+            if is_csrf:
+                import sys
+
+                # 로그 (토큰 값 자체는 로그하지 않음)
+                missing = "missing" in error_desc.lower()
+                print(
+                    f"CSRF error on {request.method} {request.path}: "
+                    f"{'session token missing' if missing else 'token mismatch'}",
+                    file=sys.stderr,
+                )
+                flash(
+                    "세션이 만료되었거나 쿠키가 차단되었습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.",
+                    "warning",
+                )
+                # 로그인 페이지로 리다이렉트 (또는 Referer)
+                return redirect(url_for("admin.login"))
+
+            # 일반 400 에러
+            return (
+                "<!doctype html><html lang=ko><meta charset=utf-8>"
+                "<title>잘못된 요청</title>"
+                "<body style='font-family:sans-serif;padding:2rem'>"
+                "<h1>잘못된 요청</h1>"
+                f"<p>{error_desc}</p>"
+                "<p><a href='/login'>로그인</a> · <a href='/'>대시보드</a></p>"
+                "</body></html>"
+            ), 400
 
         # Vercel: cold start에서 create_all/seed 를 돌리면 첫 요청이 수십 초~
         # 이미 Supabase에 스키마·관리자가 있으므로 부트스트랩 생략
