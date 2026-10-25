@@ -72,8 +72,14 @@ def create_app(config_object="config.Config"):
 
         @app.before_request
         def _make_session_permanent():
-            from flask import session
+            from flask import request, session
 
+            # API와 health 엔드포인트는 세션 설정 스킵 (불필요한 Set-Cookie 방지)
+            if request.endpoint and (
+                request.endpoint.startswith("api.")
+                or request.endpoint.startswith("health.")
+            ):
+                return
             session.permanent = True
 
         @app.after_request
