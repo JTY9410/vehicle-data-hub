@@ -115,8 +115,12 @@ class Config:
     # CSRF / session (Vercel 서버리스에서 만료·Referer 누락 방지)
     WTF_CSRF_TIME_LIMIT = None
     WTF_CSRF_HEADERS = ["X-CSRFToken", "X-CSRF-Token"]
+    SESSION_COOKIE_NAME = "vh_session"
+    SESSION_COOKIE_PATH = "/"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
+    PERMANENT_SESSION_LIFETIME = 43200
+    SESSION_REFRESH_EACH_REQUEST = True
     REMEMBER_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_SAMESITE = "Lax"
 
@@ -140,7 +144,6 @@ class Config:
         # HTTPS 프록시(Vercel) 뒤에서 세션·CSRF가 깨지지 않도록
         SESSION_COOKIE_SECURE = True
         REMEMBER_COOKIE_SECURE = True
-        SESSION_COOKIE_NAME = "vh_session"
         PREFERRED_URL_SCHEME = "https"
         WTF_CSRF_SSL_STRICT = False
     else:
@@ -165,3 +168,6 @@ class Config:
             SQLALCHEMY_DATABASE_URI = uri
         UPLOAD_FOLDER = BASE_DIR / "uploads"
         MAX_CONTENT_LENGTH = 512 * 1024 * 1024
+        # SESSION_COOKIE_SECURE는 HTTPS 프록시 환경 또는 FORCE_HTTPS=1일 때만 활성
+        SESSION_COOKIE_SECURE = bool(os.environ.get("FORCE_HTTPS"))
+        REMEMBER_COOKIE_SECURE = bool(os.environ.get("FORCE_HTTPS"))
