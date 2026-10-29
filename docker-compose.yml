@@ -2,7 +2,7 @@ name: vehiclehub
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: vehicle
       POSTGRES_PASSWORD: vehicle

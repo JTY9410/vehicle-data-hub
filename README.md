@@ -1,35 +1,59 @@
 # Vehicle Data Hub
 
-Flask + PostgreSQL 매물 허브. 운영 런타임은 **Docker Compose** 권장.
+Flask + PostgreSQL 매물 허브. **운영 런타임은 Docker Compose 내장 Postgres** (별도 Mac 서버 권장).
 
-작업 전 `pro.md`를 읽는다. 실행·설정·마이그레이션·테스트는 아래를 따른다.
+작업 전 `pro.md`를 읽는다. Hub↔PM 경계는 `docs/architecture-boundaries.md`.
 
-## 로컬 / Docker
+## 로컬 / Mac 서버 (Docker Compose)
 
 ```bash
 cp .env.example .env
-# SECRET_KEY, DATABASE_URL 을 채운다. 관리자 비밀번호는 저장소 기본값이 없다.
+# SECRET_KEY, ADMIN_*, CRAWL_API_KEY 를 채운다.
+# DATABASE_URL 은 Compose가 db 서비스로 고정하므로 보통 그대로 둔다.
 docker compose up -d --build
-# http://127.0.0.1:8001/setup 에서 최초 관리자를 만든다
+# http://127.0.0.1:8001/setup 에서 최초 관리자를 만든다 (이미 users가 있으면 생략)
 ```
+
+서비스: `db`(Postgres 17) · `web`(8001→8000) · `scheduler`(크롤 증분).  
+데이터 볼륨: `pgdata`. Postgres 포트는 외부에 열지 않는 것을 권장하고, `8001`만 LAN/리버스 프록시로 공개한다.
 
 ```bash
 # 테스트 (SQLite, DATABASE_URL 없이)
 pytest -q
 
-# 마이그레이션
-export FLASK_APP=wsgi:app
-flask db migrate -m "reason"
-flask db upgrade
+# 마이그레이션 (컨테이너)
+docker compose exec web flask db upgrade
+docker compose exec web flask db current
 ```
 
 관리자 계정은 제품에 넣지 않습니다. 빈 데이터베이스면 `/setup`에서 최초 관리자를 만들고, 이미 계정이 있으면 `.env`의 `ADMIN_USERNAME` / `ADMIN_PASSWORD`로 `flask seed-admin --force-password`만 사용하세요.
 
+### 백업
+
+```bash
+docker compose exec -T db pg_dump -U vehicle -d vehicle -F c -f /tmp/vehicle.dump
+docker compose cp db:/tmp/vehicle.dump ./tmp/vehicle-$(date +%Y%m%d).dump
+```
+
+## Supabase → 내장 DB 이전 (1회)
+
+운영 DB는 Supabase를 쓰지 않습니다. 기존 Supabase 데이터가 있으면:
+
+```bash
+export SUPABASE_DATABASE_URL='postgresql://postgres.PROJECT:PASSWORD@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres'
+./scripts/migrate_from_supabase.sh
+docker compose up -d --build
+```
+
+- `docker-compose.supabase.yml` 은 **deprecated** (신규 운영 금지).
+- 설계: `docs/superpowers/specs/2026-10-29-supabase-to-compose-db-design.md`
+
 ## 배포 (자동)
 
-`main`에 push하면 GitHub Actions(`.github/workflows/ship.yml`)가 테스트 → Docker 이미지 빌드 → Supabase `flask db upgrade` → Vercel 프로덕션을 시도합니다.
+`main`에 push하면 GitHub Actions(`.github/workflows/ship.yml`)가 테스트 → GHCR 이미지 → Vercel 프로덕션을 시도합니다.
 
-필요한 GitHub Secrets: `DATABASE_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+필요한 GitHub Secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`  
+(`DATABASE_URL`로 Supabase migrate 하던 job은 제거됨. DB 마이그레이션은 Mac Compose에서 수행.)
 
 로컬 원클릭:
 
@@ -39,60 +63,17 @@ flask db upgrade
 
 ## Vercel
 
-### 반드시 이 주소로 접속하세요
+### 주소
 
-**https://vehicle-data-hub-alpha.vercel.app/login**
+**https://vehicle-data-hub-alpha.vercel.app**
 
-- 계정은 저장소에 없습니다. 운영 담당자가 개별 전달한 아이디/비밀번호를 사용하세요.
-- `/healthz` → `{"status":"ok"}` 이면 정상
+- Hub **DB SSOT는 Mac Compose**입니다. Vercel에는 Supabase/`DATABASE_URL`을 두지 않습니다.
+- 서버리스는 조회·관리 UI용으로만 남겨 둘 수 있으나, DB 없이 로그인·API는 실패할 수 있습니다. 운영 수집·API는 Compose `web`을 사용하세요.
+- `/healthz` → `{"status":"ok"}` 이면 프로세스 기동은 정상
 
-### 잘못된 주소 (404 나는 곳)
-
-`https://vehicle-data-hub.vercel.app` 은 **다른 Next.js 프로젝트**(“Vehicle Data Info”)가 사용 중입니다.  
-이 Flask 앱이 아니므로 `/login`, `/vehicles` 에서 404가 납니다.
-
-짧은 도메인(`vehicle-data-hub.vercel.app`)을 이 앱에 쓰려면 Vercel 대시보드에서 해당 Next.js 프로젝트를 삭제하거나 도메인을 해제한 뒤, 이 프로젝트에 도메인을 다시 연결해야 합니다.
-
-Vercel은 서버리스라 **전량 크롤 동기화**는 Docker가 적합합니다.  
-환경변수: `DATABASE_URL`(Supabase pooler), `SECRET_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `CRAWL_API_KEY`
-
-## Supabase (선택 · 검토)
-
-앱은 이미 `DATABASE_URL`로 Postgres에 붙습니다. Supabase는 호환 Postgres이므로 **스키마/ORM 변경 없이** URI만 교체해 쓸 수 있습니다.
-
-권장 구성:
-
-| 환경 | 연결 | 비고 |
-|------|------|------|
-| Docker Compose `web` | Session pooler 또는 Direct (`db.*.supabase.co:5432`) | 대용량 CSV 적재·배치 remap |
-| Vercel 서버리스 | Transaction pooler (`:6543`, `?pgbouncer=true`) | 커넥션 수 제한 대응 |
-| 로컬 개발 | 기존 Compose Postgres 유지 | 비용·지연 최소화 |
-
-### 이전 절차
-
-1. Supabase Dashboard → **Project Settings → Database** → Connection string (URI) 복사 (비밀번호 포함)
-2. 로컬 덤프·복원:
-   ```bash
-   export SUPABASE_DATABASE_URL='postgresql://postgres:YOUR_PASSWORD@db.PROJECT.supabase.co:5432/postgres'
-   ./scripts/migrate_to_supabase.sh
-   ```
-3. `.env`의 `DATABASE_URL`을 `postgresql+psycopg://...` 형태로 설정
-4. Supabase만으로 기동:
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.supabase.yml up -d --build
-   ```
-5. Vercel Environment Variables에 동일 `DATABASE_URL`·`SECRET_KEY` 설정
-
-체크리스트:
-
-1. Supabase 프로젝트에서 Database → Connection string 복사  
-2. `postgresql://...` → 앱이 `postgresql+psycopg://`로 정규화 (`config.py`)  
-3. `flask db upgrade`로 마이그레이션 적용 (또는 `migrate_to_supabase.sh`)  
-4. 필요 시 `flask import-crawl`로 데이터 재적재  
-5. Vercel·Compose 환경변수에 `DATABASE_URL`·`SECRET_KEY` 설정  
-
-주의: ~20만 행·CSV 청크 upsert는 **Docker + Postgres(또는 Supabase Direct/Session)** 가 본체이고, Vercel은 조회 API용으로 두는 편이 안전합니다.
+`https://vehicle-data-hub.vercel.app` 은 **다른 Next.js 프로젝트**라 이 앱과 무관합니다.
 
 ## API
 
-관리자 → API 키 → API 명세서 참고. 헤더 `X-API-Key` 필요.
+관리자 → API 키 → API 명세서 참고. 헤더 `X-API-Key` 필요.  
+Base (Compose 예): `http://<mac-host>:8001/api/v1`

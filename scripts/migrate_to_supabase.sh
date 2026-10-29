@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# 로컬 Compose Postgres → Supabase 이전
-# 사용:
+# DEPRECATED: Supabase 런타임 중단(2026-10-29).
+# 역방향(Supabase → Compose)은 ./scripts/migrate_from_supabase.sh 를 사용하세요.
+#
+# 로컬 Compose Postgres → Supabase 이전 (레거시)
 #   export SUPABASE_DATABASE_URL='postgresql://postgres:PASSWORD@db.PROJECT.supabase.co:5432/postgres'
 #   ./scripts/migrate_to_supabase.sh
 set -euo pipefail

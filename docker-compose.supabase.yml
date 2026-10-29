@@ -1,8 +1,8 @@
-# Supabase 전용: 로컬 Postgres 없이 web만 기동
-# Direct(db.*.supabase.co)는 IPv6-only일 수 있음 → Session pooler(IPv4) 권장
-# 사용:
-#   export SUPABASE_DATABASE_URL='postgresql+psycopg://postgres.PROJECT:%23PASSWORD@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require'
-#   docker compose -f docker-compose.yml -f docker-compose.supabase.yml up -d --build
+# DEPRECATED (2026-10-29): Supabase 런타임은 중단.
+# 운영은 docker-compose.yml 내장 Postgres만 사용.
+# 데이터 이전: ./scripts/migrate_from_supabase.sh
+#
+# 이 오버레이를 쓰면 내장 db가 꺼지고 원격 DATABASE_URL로 붙습니다. 신규 운영 금지.
 name: vehiclehub
 
 services:
@@ -12,7 +12,6 @@ services:
   web:
     depends_on: !reset []
     environment:
-      # SUPABASE_DATABASE_URL 우선, 없으면 .env의 DATABASE_URL (--env-file) 사용
       DATABASE_URL: ${SUPABASE_DATABASE_URL:-${DATABASE_URL:?DATABASE_URL 또는 SUPABASE_DATABASE_URL 필요}}
 
   scheduler:

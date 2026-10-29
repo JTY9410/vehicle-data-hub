@@ -38,25 +38,6 @@ jobs:
             ghcr.io/jty9410/vehicle-data-hub:latest
             ghcr.io/jty9410/vehicle-data-hub:${{ github.sha }}
 
-  supabase:
-    needs: test
-    runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      FLASK_APP: wsgi:app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -r requirements.txt
-      - name: Migrate Supabase
-        if: env.DATABASE_URL != ''
-        run: flask db upgrade
-      - name: Skip migrate
-        if: env.DATABASE_URL == ''
-        run: echo "Set GitHub secret DATABASE_URL to enable migrate"
-
   vercel:
     needs: test
     runs-on: ubuntu-latest
