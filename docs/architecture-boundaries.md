@@ -133,7 +133,7 @@ Crawl API / CSV
 
 | 항목 | 값 |
 |------|-----|
-| Base | `/api/v1` (배포 예: `https://vehicle-data-hub-alpha.vercel.app/api/v1`) |
+| Base | `/api/v1` (배포 예: `https://vdh.wecarmobility.co.kr/api/v1`) |
 | 인증 | 모든 요청 `X-API-Key` 또는 `Authorization: Bearer` — 없음/비활성 → **401** |
 | 가격 | `price_unit` 항상 `"만원"` · `car_price`는 만원 정수 |
 | CORS | `Access-Control-Allow-Origin: *` (브라우저에 키 노출 금지) |

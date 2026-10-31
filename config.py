@@ -168,6 +168,14 @@ class Config:
             SQLALCHEMY_DATABASE_URI = uri
         UPLOAD_FOLDER = BASE_DIR / "uploads"
         MAX_CONTENT_LENGTH = 512 * 1024 * 1024
-        # SESSION_COOKIE_SECURE는 HTTPS 프록시 환경 또는 FORCE_HTTPS=1일 때만 활성
-        SESSION_COOKIE_SECURE = bool(os.environ.get("FORCE_HTTPS"))
-        REMEMBER_COOKIE_SECURE = bool(os.environ.get("FORCE_HTTPS"))
+        # HTTPS 프록시(TRUST_PROXY/FORCE_HTTPS) 뒤에서 Secure 쿠키
+        _secure = (
+            bool(os.environ.get("FORCE_HTTPS"))
+            or (os.environ.get("TRUST_PROXY") or "").strip().lower()
+            in ("1", "true", "yes")
+        )
+        SESSION_COOKIE_SECURE = _secure
+        REMEMBER_COOKIE_SECURE = _secure
+        if _secure:
+            PREFERRED_URL_SCHEME = "https"
+            WTF_CSRF_SSL_STRICT = False

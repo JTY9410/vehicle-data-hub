@@ -4,7 +4,9 @@
 #   export SUPABASE_DATABASE_URL='postgresql://postgres.PROJECT:PASSWORD@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres'
 #   ./scripts/migrate_from_supabase.sh
 #
+# 컷오버: 이 스크립트 실행 직전부터 Supabase(구 Hub DB) 쓰기를 중단할 것.
 # Direct(db.*.supabase.co)도 가능. Session pooler(5432) 권장.
+# 덤프(tmp/)는 개인정보 포함 가능 — 레포 커밋 금지.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

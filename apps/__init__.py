@@ -21,25 +21,52 @@ def create_app(config_object="config.Config"):
         app = Flask(__name__, **flask_kwargs)
         app.config.from_object(config_object)
 
-        # ProxyFix: Vercel 또는 PROXY_FIX_HOPS 설정 시 활성 (Docker nginx/traefik 프록시)
-        if os.environ.get("VERCEL"):
+        # ProxyFix: Vercel / TRUST_PROXY / PROXY_FIX_HOPS (nginx 1단 뒤 Mac 서버는 TRUST_PROXY=1)
+        _trust = (os.environ.get("TRUST_PROXY") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        _hops_raw = (os.environ.get("PROXY_FIX_HOPS") or "").strip()
+        if os.environ.get("VERCEL") or _trust or _hops_raw:
             from werkzeug.middleware.proxy_fix import ProxyFix
 
-            app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-        elif os.environ.get("PROXY_FIX_HOPS"):
-            from werkzeug.middleware.proxy_fix import ProxyFix
-
-            hops = int(os.environ.get("PROXY_FIX_HOPS", "1"))
+            hops = int(_hops_raw or "1")
+            if hops < 1:
+                hops = 1
             app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops)
-            if hops > 0:
-                app.config["SESSION_COOKIE_SECURE"] = True
-                app.config["REMEMBER_COOKIE_SECURE"] = True
+            app.config["SESSION_COOKIE_SECURE"] = True
+            app.config["REMEMBER_COOKIE_SECURE"] = True
+            app.config["PREFERRED_URL_SCHEME"] = "https"
+            app.config["WTF_CSRF_SSL_STRICT"] = False
 
-        # SECRET_KEY 기본값 경고 (테스트/디버그 제외)
+        _require_env = (os.environ.get("REQUIRE_PRODUCTION_ENV") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        ) or _trust
+        if (
+            _require_env
+            and not app.config.get("TESTING")
+            and not os.environ.get("VERCEL")
+        ):
+            missing = []
+            sk = (app.config.get("SECRET_KEY") or "").strip()
+            if not sk or sk in ("dev-change-me", "change-me-in-production"):
+                missing.append("SECRET_KEY")
+            if missing:
+                raise RuntimeError(
+                    "필수 환경변수 누락/기본값: "
+                    + ", ".join(missing)
+                    + " (.env.example 참고)"
+                )
+
+        # SECRET_KEY 기본값 경고 (테스트/디버그·위에서 이미 실패한 경우 제외)
         if (
             app.config.get("SECRET_KEY") == "dev-change-me"
             and not app.config.get("TESTING")
             and not app.config.get("DEBUG")
+            and not _require_env
         ):
             import sys
             print(

@@ -1,3 +1,9 @@
+# Mac 서버 / 로컬 공통. Vercel·Supabase 런타임 사용 안 함.
+# 서버는 이 파일 + docker-compose.override.yml + .env 로 기동.
+# 스케줄러(메모리 제약): docker compose --profile scheduler up -d
+#
+# 주의: 볼륨 이름(pgdata)·Postgres 메이저(17)를 바꾸면 기존 데이터를 못 읽음.
+#       변경 시 README의 덤프→복원 절차를 따른다.
 name: vehiclehub
 
 services:
@@ -21,11 +27,14 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     ports:
-      - "8001:8000"
-    env_file: .env
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8010}:8000"
+    env_file:
+      - path: .env
+        required: false
     environment:
-      # 로컬 Compose Postgres (셸 DATABASE_URL 잔여값에 덮이지 않도록 고정)
+      # 셸 DATABASE_URL 잔여값에 덮이지 않도록 Compose db 고정
       DATABASE_URL: postgresql+psycopg://vehicle:vehicle@db:5432/vehicle
+      TRUST_PROXY: ${TRUST_PROXY:-1}
     volumes:
       - ./uploads:/app/uploads
       - .:/data:ro
@@ -44,14 +53,19 @@ services:
       timeout: 5s
       retries: 10
 
+  # 매일 증분 수집. 서버 메모리 제약으로 기본 off — profile 로 수동 기동.
   scheduler:
     build: .
+    profiles: ["scheduler"]
     dns:
       - 8.8.8.8
       - 1.1.1.1
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg://vehicle:vehicle@db:5432/vehicle
+      TRUST_PROXY: ${TRUST_PROXY:-1}
     entrypoint: ["python", "-m", "apps.scheduler"]
     restart: unless-stopped
     depends_on:

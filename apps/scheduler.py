@@ -91,6 +91,12 @@ def queue_daily_collect(app) -> bool:
 
 
 def main() -> None:
+    import os
+
+    if not (os.environ.get("CRAWL_API_KEY") or "").strip():
+        raise SystemExit(
+            "CRAWL_API_KEY 가 비어 있습니다. 스케줄러는 크롤 API 키가 필요합니다 (.env.example 참고)."
+        )
     app = create_app()
     while True:
         with app.app_context():
