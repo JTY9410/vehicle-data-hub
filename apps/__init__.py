@@ -22,11 +22,12 @@ def create_app(config_object="config.Config"):
         app.config.from_object(config_object)
 
         # ProxyFix: Vercel / TRUST_PROXY / PROXY_FIX_HOPS (nginx 1단 뒤 Mac 서버는 TRUST_PROXY=1)
-        _trust = (os.environ.get("TRUST_PROXY") or "").strip().lower() in (
-            "1",
-            "true",
-            "yes",
-        )
+        # Secure 쿠키는 TRUST_PROXY 와 분리 — HTTP 로컬에서 Secure=1 이면
+        # vh_session 이 저장되지 않아 POST /login 이 "CSRF session token missing" 으로 실패한다.
+        def _env_truthy(name: str) -> bool:
+            return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes")
+
+        _trust = _env_truthy("TRUST_PROXY")
         _hops_raw = (os.environ.get("PROXY_FIX_HOPS") or "").strip()
         if os.environ.get("VERCEL") or _trust or _hops_raw:
             from werkzeug.middleware.proxy_fix import ProxyFix
@@ -35,10 +36,18 @@ def create_app(config_object="config.Config"):
             if hops < 1:
                 hops = 1
             app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops)
+
+        _secure = bool(os.environ.get("VERCEL")) or _env_truthy("FORCE_HTTPS") or _env_truthy(
+            "SESSION_COOKIE_SECURE"
+        )
+        if _secure:
             app.config["SESSION_COOKIE_SECURE"] = True
             app.config["REMEMBER_COOKIE_SECURE"] = True
             app.config["PREFERRED_URL_SCHEME"] = "https"
             app.config["WTF_CSRF_SSL_STRICT"] = False
+        elif not os.environ.get("VERCEL"):
+            app.config["SESSION_COOKIE_SECURE"] = False
+            app.config["REMEMBER_COOKIE_SECURE"] = False
 
         # TRUST_PROXY 만으로 기동을 막지 않는다 (기본값 1이면 nginx 502만 남김).
         # 사내 서버는 REQUIRE_PRODUCTION_ENV=1 로 필수값을 강제한다.

@@ -25,7 +25,8 @@ docker compose --profile scheduler up -d
 
 기본 바인딩: `127.0.0.1:8010` (`WEB_BIND` / `WEB_PORT`).  
 `TRUST_PROXY` 기본 `1` (nginx 뒤 https·Secure 쿠키).  
-사내 서버 `.env`에는 실 `SECRET_KEY`와 `REQUIRE_PRODUCTION_ENV=1`을 넣는다.  
+사내 서버 `.env`에는 실 `SECRET_KEY`, `REQUIRE_PRODUCTION_ENV=1`, `SESSION_COOKIE_SECURE=1`(https)을 넣는다.  
+로컬 HTTP 로그인은 `SESSION_COOKIE_SECURE=0` (기본). Secure=1이면 CSRF로 로그인이 실패한다.  
 nginx **502** 이면 보통 upstream(`127.0.0.1:8010`)에 web이 없음 → `docker compose ps` · `curl 127.0.0.1:8010/healthz` · `docker compose logs web` 확인 후 `docker compose up -d --build db web`.
 
 공개 API base: `https://vdh.wecarmobility.co.kr/api/v1`  

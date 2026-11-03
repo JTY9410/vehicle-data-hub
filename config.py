@@ -168,10 +168,11 @@ class Config:
             SQLALCHEMY_DATABASE_URI = uri
         UPLOAD_FOLDER = BASE_DIR / "uploads"
         MAX_CONTENT_LENGTH = 512 * 1024 * 1024
-        # HTTPS 프록시(TRUST_PROXY/FORCE_HTTPS) 뒤에서 Secure 쿠키
+        # Secure 쿠키는 HTTPS(FORCE_HTTPS / SESSION_COOKIE_SECURE)일 때만.
+        # TRUST_PROXY 만으로 Secure=1 이면 HTTP 로컬 로그인이 CSRF 로 실패한다.
         _secure = (
-            bool(os.environ.get("FORCE_HTTPS"))
-            or (os.environ.get("TRUST_PROXY") or "").strip().lower()
+            (os.environ.get("FORCE_HTTPS") or "").strip().lower() in ("1", "true", "yes")
+            or (os.environ.get("SESSION_COOKIE_SECURE") or "").strip().lower()
             in ("1", "true", "yes")
         )
         SESSION_COOKIE_SECURE = _secure

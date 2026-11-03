@@ -35,6 +35,9 @@ services:
       # 셸 DATABASE_URL 잔여값에 덮이지 않도록 Compose db 고정
       DATABASE_URL: postgresql+psycopg://vehicle:vehicle@db:5432/vehicle
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      # 사내 https(nginx)만 1. HTTP 로컬은 0 (미설정 시 0) — Secure 쿠키/CSRF
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-0}
+      FORCE_HTTPS: ${FORCE_HTTPS:-0}
       REQUIRE_PRODUCTION_ENV: ${REQUIRE_PRODUCTION_ENV:-0}
     restart: unless-stopped
     volumes:

@@ -129,6 +129,28 @@ def test_login_post_without_cookie_returns_friendly_redirect(tmp_path, monkeypat
         db.drop_all()
 
 
+def test_trust_proxy_does_not_force_secure_cookie(monkeypatch, tmp_path):
+    """TRUST_PROXY=1 alone must not set Secure cookies (HTTP local login/CSRF)."""
+    import importlib
+    import config as config_module
+    from apps import create_app
+
+    monkeypatch.setenv("SECRET_KEY", "test-csrf-secret")
+    monkeypatch.setenv("TRUST_PROXY", "1")
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "0")
+    monkeypatch.setenv("FORCE_HTTPS", "0")
+    monkeypatch.delenv("VERCEL", raising=False)
+    db_url = f"sqlite:///{tmp_path / 'secure_cookie.db'}"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    importlib.reload(config_module)
+    monkeypatch.setattr(config_module.Config, "SQLALCHEMY_DATABASE_URI", db_url)
+    monkeypatch.setattr(config_module.Config, "SQLALCHEMY_ENGINE_OPTIONS", {}, raising=False)
+
+    app = create_app()
+    assert app.config["SESSION_COOKIE_SECURE"] is False
+    assert app.config["REMEMBER_COOKIE_SECURE"] is False
+
+
 def test_session_cookie_name_is_consistent(app):
     """SESSION_COOKIE_NAME이 vh_session으로 설정되어 있는지 확인"""
     assert app.config["SESSION_COOKIE_NAME"] == "vh_session"
