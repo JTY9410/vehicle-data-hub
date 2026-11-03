@@ -13,10 +13,15 @@ Hub↔PM 경계: `docs/architecture-boundaries.md`.
 
 ```bash
 cp .env.example .env   # SECRET_KEY, CRAWL_API_* 등 채움
+# Docker CLI 가 없으면: source ~/.zshrc  또는  ./scripts/dc.sh ...
 docker compose up -d --build
 # 스케줄러(매일 00:00 KST 증분)는 메모리 제약으로 수동:
 docker compose --profile scheduler up -d
 ```
+
+로컬 기본 포트는 `.env`의 `WEB_PORT`(이 Mac은 보통 **8001**). Compose 기본값은 8010(사내 nginx).  
+헬스체크: `curl -sS http://127.0.0.1:8001/healthz` → `{"db":true,"status":"ok"}`  
+(`8010`의 `{"app":"AIWE"...}` 는 PM이며 Hub가 아님.)
 
 기본 바인딩: `127.0.0.1:8010` (`WEB_BIND` / `WEB_PORT`).  
 `TRUST_PROXY` 기본 `1` (nginx 뒤 https·Secure 쿠키).  
