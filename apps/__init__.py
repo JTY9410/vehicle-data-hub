@@ -40,11 +40,13 @@ def create_app(config_object="config.Config"):
             app.config["PREFERRED_URL_SCHEME"] = "https"
             app.config["WTF_CSRF_SSL_STRICT"] = False
 
+        # TRUST_PROXY 만으로 기동을 막지 않는다 (기본값 1이면 nginx 502만 남김).
+        # 사내 서버는 REQUIRE_PRODUCTION_ENV=1 로 필수값을 강제한다.
         _require_env = (os.environ.get("REQUIRE_PRODUCTION_ENV") or "").strip().lower() in (
             "1",
             "true",
             "yes",
-        ) or _trust
+        )
         if (
             _require_env
             and not app.config.get("TESTING")
@@ -62,16 +64,17 @@ def create_app(config_object="config.Config"):
                 )
 
         # SECRET_KEY 기본값 경고 (테스트/디버그·위에서 이미 실패한 경우 제외)
+        _sk = (app.config.get("SECRET_KEY") or "").strip()
         if (
-            app.config.get("SECRET_KEY") == "dev-change-me"
+            _sk in ("dev-change-me", "change-me-in-production", "")
             and not app.config.get("TESTING")
             and not app.config.get("DEBUG")
             and not _require_env
         ):
             import sys
             print(
-                "⚠️  WARNING: SECRET_KEY is using the default value 'dev-change-me'. "
-                "Set the SECRET_KEY environment variable in production!",
+                "⚠️  WARNING: SECRET_KEY is missing or using a placeholder. "
+                "Set SECRET_KEY (and REQUIRE_PRODUCTION_ENV=1 on the Mac server).",
                 file=sys.stderr,
             )
 

@@ -19,7 +19,9 @@ docker compose --profile scheduler up -d
 ```
 
 기본 바인딩: `127.0.0.1:8010` (`WEB_BIND` / `WEB_PORT`).  
-`TRUST_PROXY` 기본 `1` (nginx 뒤 https·Secure 쿠키).
+`TRUST_PROXY` 기본 `1` (nginx 뒤 https·Secure 쿠키).  
+사내 서버 `.env`에는 실 `SECRET_KEY`와 `REQUIRE_PRODUCTION_ENV=1`을 넣는다.  
+nginx **502** 이면 보통 upstream(`127.0.0.1:8010`)에 web이 없음 → `docker compose ps` · `curl 127.0.0.1:8010/healthz` · `docker compose logs web` 확인 후 `docker compose up -d --build db web`.
 
 공개 API base: `https://vdh.wecarmobility.co.kr/api/v1`  
 인증: 관리자 → API 키 화면에서 발급한 값을 `X-API-Key`로 전달.  
@@ -88,6 +90,7 @@ docker compose up -d --build
 |------|------|
 | `SECRET_KEY` | 세션·CSRF (필수, 기본값 금지) |
 | `TRUST_PROXY` | 서버 `1` |
+| `REQUIRE_PRODUCTION_ENV` | 사내 서버 `1` (SECRET_KEY 강제) |
 | `WEB_BIND` / `WEB_PORT` | 기본 `127.0.0.1` / `8010` |
 | `CRAWL_API_URL` | `https://crawl.wecarmobility.co.kr` |
 | `CRAWL_API_KEY` | 별도 채널 (스케줄러 필수) |

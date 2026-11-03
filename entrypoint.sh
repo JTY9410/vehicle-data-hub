@@ -1,5 +1,32 @@
 #!/bin/sh
 set -e
+
+# 기동 전 점검: TRUST_PROXY=1 이어도 플레이스홀더 SECRET_KEY 로 gunicorn 이
+# 바로 죽으면 nginx 는 502 만 보인다. REQUIRE_PRODUCTION_ENV=1 이면 여기서 실패.
+python - <<'PY'
+import os
+import sys
+
+def truthy(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes")
+
+sk = (os.environ.get("SECRET_KEY") or "").strip()
+bad = (not sk) or sk in ("dev-change-me", "change-me-in-production")
+if truthy("REQUIRE_PRODUCTION_ENV") and bad:
+    print(
+        "FATAL: REQUIRE_PRODUCTION_ENV=1 인데 SECRET_KEY 가 비어 있거나 예시값입니다. "
+        ".env 의 SECRET_KEY 를 실값으로 설정하세요.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+if truthy("TRUST_PROXY") and bad:
+    print(
+        "WARNING: TRUST_PROXY=1 인데 SECRET_KEY 가 예시값/비어 있습니다. "
+        "사내 서버는 REQUIRE_PRODUCTION_ENV=1 과 실 SECRET_KEY 를 권장합니다.",
+        file=sys.stderr,
+    )
+PY
+
 python - <<'PY'
 import os
 import time

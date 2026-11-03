@@ -35,6 +35,8 @@ services:
       # 셸 DATABASE_URL 잔여값에 덮이지 않도록 Compose db 고정
       DATABASE_URL: postgresql+psycopg://vehicle:vehicle@db:5432/vehicle
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      REQUIRE_PRODUCTION_ENV: ${REQUIRE_PRODUCTION_ENV:-0}
+    restart: unless-stopped
     volumes:
       - ./uploads:/app/uploads
       - .:/data:ro
@@ -51,7 +53,8 @@ services:
         ]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 12
+      start_period: 90s
 
   # 매일 증분 수집. 서버 메모리 제약으로 기본 off — profile 로 수동 기동.
   scheduler:
